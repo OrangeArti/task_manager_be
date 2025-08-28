@@ -7,7 +7,7 @@ namespace TaskManager.Api.Data
     {
         public ApplicationDbContext(DbContextOptions<ApplicationDbContext> options)
             : base(options) { }
-        public DbSet<TaskItem> Task => Set<TaskItem>();
+        public DbSet<TaskItem> Tasks => Set<TaskItem>();
         protected override void OnModelCreating(ModelBuilder modelBuilder)
         {
             base.OnModelCreating(modelBuilder);

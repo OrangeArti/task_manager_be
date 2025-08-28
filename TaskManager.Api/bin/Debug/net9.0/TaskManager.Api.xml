@@ -1,0 +1,52 @@
+<?xml version="1.0"?>
+<doc>
+    <assembly>
+        <name>TaskManager.Api</name>
+    </assembly>
+    <members>
+        <member name="T:TaskManager.Api.Controllers.HealthController">
+            <summary>
+            Health-check эндпоинты сервиса.
+            </summary>
+        </member>
+        <member name="M:TaskManager.Api.Controllers.HealthController.CheckDatabase">
+            <summary>
+            Проверка доступности подключения к базе данных.
+            </summary>
+            <returns>Статус здоровья и состояние подключения к БД.</returns>
+            <response code="200">Подключение к БД доступно.</response>
+            <response code="500">Подключение к БД недоступно или произошла ошибка.</response>
+        </member>
+        <member name="T:TaskManager.Api.Controllers.TasksController">
+            <summary>
+            CRUD по задачам. В этом микро‑шаге реализуем только список (GET).
+            </summary>
+        </member>
+        <member name="M:TaskManager.Api.Controllers.TasksController.GetAll">
+            <summary>
+            Возвращает список задач (все записи) в виде DTO.
+            </summary>
+            <remarks>
+            MVP‑версия: без пагинации и фильтров. Далее добавим.
+            </remarks>
+            <response code="200">Список задач успешно получен.</response>
+        </member>
+        <member name="T:TaskManager.Api.Dtos.TaskItemDto">
+            <summary>
+            Публичная форма задачи для отдачи во внешний мир (REST API).
+            </summary>
+        </member>
+        <member name="T:TaskManager.Api.Migrations.InitialCreate">
+            <inheritdoc />
+        </member>
+        <member name="M:TaskManager.Api.Migrations.InitialCreate.Up(Microsoft.EntityFrameworkCore.Migrations.MigrationBuilder)">
+            <inheritdoc />
+        </member>
+        <member name="M:TaskManager.Api.Migrations.InitialCreate.Down(Microsoft.EntityFrameworkCore.Migrations.MigrationBuilder)">
+            <inheritdoc />
+        </member>
+        <member name="M:TaskManager.Api.Migrations.InitialCreate.BuildTargetModel(Microsoft.EntityFrameworkCore.ModelBuilder)">
+            <inheritdoc />
+        </member>
+    </members>
+</doc>
