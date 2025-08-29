@@ -19,7 +19,7 @@
         </member>
         <member name="T:TaskManager.Api.Controllers.TasksController">
             <summary>
-            CRUD по задачам. В этом микро‑шаге реализуем только список (GET).
+            CRUD по задачам: список, создание, изменение статуса, получение по id.
             </summary>
         </member>
         <member name="M:TaskManager.Api.Controllers.TasksController.GetAll">
@@ -31,9 +31,78 @@
             </remarks>
             <response code="200">Список задач успешно получен.</response>
         </member>
+        <member name="M:TaskManager.Api.Controllers.TasksController.Create(TaskManager.Api.Dtos.CreateTaskRequest)">
+            <summary>
+            Создаёт новую задачу.
+            </summary>
+            <response code="201">Задача создана, возвращает объект и Location.</response>
+            <response code="400">Данные не прошли валидацию.</response>
+        </member>
+        <member name="M:TaskManager.Api.Controllers.TasksController.GetById(System.Int32)">
+            <summary>
+            Возвращает задачу по идентификатору.
+            </summary>
+            <param name="id">Идентификатор задачи.</param>
+            <response code="200">Задача найдена.</response>
+            <response code="404">Задача не найдена.</response>
+        </member>
+        <member name="M:TaskManager.Api.Controllers.TasksController.UpdateStatus(System.Int32,TaskManager.Api.Dtos.UpdateTaskStatusRequest)">
+            <summary>
+            Обновляет статус задачи (выполнена/нет).
+            </summary>
+            <param name="id">Идентификатор задачи.</param>
+            <response code="200">Статус изменён, возвращаем обновлённый объект.</response>
+            <response code="204">Статус уже имел переданное значение (идемпотентно, без изменений).</response>
+            <response code="400">Некорректный запрос (нет поля IsCompleted или неверный формат).</response>
+            <response code="404">Задача не найдена.</response>
+        </member>
+        <member name="M:TaskManager.Api.Controllers.TasksController.Delete(System.Int32)">
+            <summary>
+            Удаляет задачу по идентификатору.
+            </summary>
+            <param name="id">Идентификатор задачи.</param>
+            <response code="204">Задача успешно удалена.</response>
+            <response code="404">Задача не найдена.</response>
+        </member>
+        <member name="T:TaskManager.Api.Dtos.CreateTaskRequest">
+            <summary>
+            Данные, разрешённые при создании задачи.
+            </summary>
+        </member>
+        <member name="P:TaskManager.Api.Dtos.CreateTaskRequest.Title">
+            <summary>
+            Заголовок задачи. Обязателен, 1..200 символов.
+            </summary>
+        </member>
+        <member name="P:TaskManager.Api.Dtos.CreateTaskRequest.Description">
+            <summary>
+            Описание (необязательно, до 4000 символов).
+            </summary>
+        </member>
+        <member name="P:TaskManager.Api.Dtos.CreateTaskRequest.DueDate">
+            <summary>
+            Дедлайн (необязателен). Ожидается в UTC.
+            </summary>
+        </member>
+        <member name="P:TaskManager.Api.Dtos.CreateTaskRequest.Priority">
+            <summary>
+            Приоритет: 0 = Low, 1 = Medium, 2 = High.
+            </summary>
+        </member>
         <member name="T:TaskManager.Api.Dtos.TaskItemDto">
             <summary>
             Публичная форма задачи для отдачи во внешний мир (REST API).
+            </summary>
+        </member>
+        <member name="T:TaskManager.Api.Dtos.UpdateTaskStatusRequest">
+            <summary>
+            Обновление только статуса задачи.
+            </summary>
+        </member>
+        <member name="P:TaskManager.Api.Dtos.UpdateTaskStatusRequest.IsCompleted">
+            <summary>
+            Новый статус задачи: true = завершена, false = активна.
+            Обязательное поле.
             </summary>
         </member>
         <member name="T:TaskManager.Api.Migrations.InitialCreate">
