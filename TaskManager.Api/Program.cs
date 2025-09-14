@@ -30,6 +30,21 @@ builder.Services.AddSwaggerGen(options =>
 builder.Services.AddDbContext<ApplicationDbContext>(options =>
     options.UseSqlServer(builder.Configuration.GetConnectionString("DefaultConnection")));
 
+var allowedOrigins = builder.Configuration.GetSection("AllowedCorsOrigins").Get<string[]>() ?? Array.Empty<string>();
+
+builder.Services.AddCors(options =>
+{
+    options.AddPolicy("FrontendDev", policy =>
+    {
+        policy
+            .WithOrigins(allowedOrigins) // строгий список из конфигурации
+            .WithMethods("GET", "POST", "PUT", "PATCH", "DELETE", "OPTIONS")
+            .WithHeaders("Content-Type", "Authorization")
+            .WithExposedHeaders("Location"); // чтобы фронт видел заголовок Location из POST
+        // .AllowCredentials(); // НЕ включаем, пока не понадобятся куки
+    });
+});
+
 var app = builder.Build();
 
 // Configure the HTTP request pipeline
@@ -44,6 +59,8 @@ if (app.Environment.IsDevelopment())
 }
 
 app.UseHttpsRedirection();
+
+app.UseCors("FrontendDev");
 
 app.UseAuthorization();
 app.MapControllers();

@@ -22,19 +22,74 @@ namespace TaskManager.Api.Controllers
         }
 
         /// <summary>
-        /// Возвращает список задач (все записи) в виде DTO.
+        /// Возвращает список задач с пагинацией и сортировкой.
         /// </summary>
         /// <remarks>
-        /// MVP‑версия: без пагинации и фильтров. Далее добавим.
+        /// Пример: /api/tasks?page=1&amp;pageSize=20&amp;sortBy=dueDate&amp;sortDir=asc
+        /// Поля сортировки: createdAt | dueDate | priority | title.
         /// </remarks>
         /// <response code="200">Список задач успешно получен.</response>
         [HttpGet]
         [ProducesResponseType(StatusCodes.Status200OK)]
-        public async Task<ActionResult<IEnumerable<TaskItemDto>>> GetAll()
+        public async Task<ActionResult<PagedResult<TaskItemDto>>> GetAll([FromQuery] TaskListQuery query)
         {
-            // IQueryable -> проекция в DTO -> исполнение на стороне БД
-            var items = await _db.Tasks
-                .AsNoTracking() // читаем без отслеживания (чуть быстрее, меньше памяти)
+            var (page, pageSize) = query.NormalizePaging();
+            var (sortBy, desc) = query.NormalizeSorting();
+            var search = query.NormalizeSearch();
+
+            // Базовый запрос (не материализуем)
+            var q = _db.Tasks.AsNoTracking();
+
+            // --- ФИЛЬТРЫ ---
+            if (query.IsCompleted.HasValue)
+                q = q.Where(t => t.IsCompleted == query.IsCompleted.Value);
+
+            if (query.Priority.HasValue)
+                q = q.Where(t => t.Priority == query.Priority.Value);
+
+            if (search is not null)
+            {
+                // простая case-insensitive contains (для MSSQL: переводим к одному регистру)
+                var s = search.ToLower();
+                q = q.Where(t =>
+                    (t.Title != null && t.Title.ToLower().Contains(s)) ||
+                    (t.Description != null && t.Description.ToLower().Contains(s)));
+            }
+
+            if (query.DueDateFrom.HasValue)
+                q = q.Where(t => t.DueDate >= query.DueDateFrom.Value);
+
+            if (query.DueDateTo.HasValue)
+                q = q.Where(t => t.DueDate <= query.DueDateTo.Value);
+
+
+            // Сортировка (whitelist полей)
+            q = (sortBy, desc) switch
+            {
+                ("createdAt", false) => q.OrderBy(t => t.CreatedAt),
+                ("createdAt", true)  => q.OrderByDescending(t => t.CreatedAt),
+
+                ("dueDate", false)   => q.OrderBy(t => t.DueDate),
+                ("dueDate", true)    => q.OrderByDescending(t => t.DueDate),
+
+                ("priority", false)  => q.OrderBy(t => t.Priority),
+                ("priority", true)   => q.OrderByDescending(t => t.Priority),
+
+                ("title", false)     => q.OrderBy(t => t.Title),
+                ("title", true)      => q.OrderByDescending(t => t.Title),
+
+                _ => q.OrderByDescending(t => t.CreatedAt)
+            };
+
+            // Считаем total до Skip/Take (выполнится как COUNT(*) на стороне БД)
+            var total = await q.CountAsync();
+
+            // Пагинация
+            var skip = (page - 1) * pageSize;
+
+            var items = await q
+                .Skip(skip)
+                .Take(pageSize)
                 .Select(t => new TaskItemDto
                 {
                     Id = t.Id,
@@ -47,7 +102,15 @@ namespace TaskManager.Api.Controllers
                 })
                 .ToListAsync();
 
-            return Ok(items);
+            var result = new PagedResult<TaskItemDto>
+            {
+                Items = items,
+                Total = total,
+                Page = page,
+                PageSize = pageSize
+            };
+
+            return Ok(result);
         }
 
         /// <summary>
@@ -133,6 +196,7 @@ namespace TaskManager.Api.Controllers
         /// Обновляет статус задачи (выполнена/нет).
         /// </summary>
         /// <param name="id">Идентификатор задачи.</param>
+        /// <param name="request">Тело запроса с новым значением статуса (<c>IsCompleted</c>).</param>
         /// <response code="200">Статус изменён, возвращаем обновлённый объект.</response>
         /// <response code="204">Статус уже имел переданное значение (идемпотентно, без изменений).</response>
         /// <response code="400">Некорректный запрос (нет поля IsCompleted или неверный формат).</response>
@@ -172,6 +236,75 @@ namespace TaskManager.Api.Controllers
 
             return Ok(dto);
         }
+
+        /// <summary>
+        /// Полностью обновляет редактируемые поля задачи (без статуса).
+        /// </summary>
+        /// <param name="id">Идентификатор задачи.</param>
+        /// <param name="request">Тело запроса с новыми значениями полей (Title, Description, DueDate, Priority).</param>
+        /// <response code="200">Задача обновлена, возвращаем актуальный объект.</response>
+        /// <response code="204">Данные совпадают с текущими — изменений нет.</response>
+        /// <response code="400">Данные не прошли валидацию.</response>
+        /// <response code="404">Задача не найдена.</response>
+        [HttpPut("{id:int}")]
+        [ProducesResponseType(StatusCodes.Status200OK)]
+        [ProducesResponseType(StatusCodes.Status204NoContent)]
+        [ProducesResponseType(StatusCodes.Status400BadRequest)]
+        [ProducesResponseType(StatusCodes.Status404NotFound)]
+        public async Task<IActionResult> Update([FromRoute] int id, [FromBody] UpdateTaskRequest request)
+        {
+            if (!ModelState.IsValid)
+                return ValidationProblem(ModelState);
+
+            var entity = await _db.Tasks.FirstOrDefaultAsync(t => t.Id == id);
+            if (entity is null)
+                return NotFound(new { message = $"Task #{id} not found" });
+
+            // Доменная проверка: дедлайн не в прошлом
+            if (request.DueDate.HasValue && request.DueDate.Value < DateTime.UtcNow.Date)
+            {
+                ModelState.AddModelError(nameof(request.DueDate), "DueDate cannot be in the past.");
+                return ValidationProblem(ModelState);
+            }
+
+            // Нормализуем вход
+            var newTitle = request.Title.Trim();
+            var newDescription = string.IsNullOrWhiteSpace(request.Description)
+                ? null
+                : request.Description.Trim();
+
+            // Грязевая проверка (ничего не меняем — возвращаем 204)
+            var noChanges =
+                entity.Title == newTitle &&
+                entity.Description == newDescription &&
+                entity.DueDate == request.DueDate &&
+                entity.Priority == request.Priority;
+
+            if (noChanges)
+                return NoContent();
+
+            // Применяем изменения
+            entity.Title = newTitle;
+            entity.Description = newDescription;
+            entity.DueDate = request.DueDate;
+            entity.Priority = request.Priority;
+
+            await _db.SaveChangesAsync();
+
+            var dto = new TaskItemDto
+            {
+                Id = entity.Id,
+                Title = entity.Title,
+                Description = entity.Description,
+                DueDate = entity.DueDate,
+                IsCompleted = entity.IsCompleted, // статус трогает отдельный PATCH /status
+                Priority = entity.Priority,
+                CreatedAt = entity.CreatedAt
+            };
+
+            return Ok(dto);
+        }
+
         /// <summary>
         /// Удаляет задачу по идентификатору.
         /// </summary>

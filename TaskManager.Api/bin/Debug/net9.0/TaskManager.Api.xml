@@ -22,12 +22,13 @@
             CRUD по задачам: список, создание, изменение статуса, получение по id.
             </summary>
         </member>
-        <member name="M:TaskManager.Api.Controllers.TasksController.GetAll">
+        <member name="M:TaskManager.Api.Controllers.TasksController.GetAll(TaskManager.Api.Dtos.TaskListQuery)">
             <summary>
-            Возвращает список задач (все записи) в виде DTO.
+            Возвращает список задач с пагинацией и сортировкой.
             </summary>
             <remarks>
-            MVP‑версия: без пагинации и фильтров. Далее добавим.
+            Пример: /api/tasks?page=1&amp;pageSize=20&amp;sortBy=dueDate&amp;sortDir=asc
+            Поля сортировки: createdAt | dueDate | priority | title.
             </remarks>
             <response code="200">Список задач успешно получен.</response>
         </member>
@@ -51,9 +52,21 @@
             Обновляет статус задачи (выполнена/нет).
             </summary>
             <param name="id">Идентификатор задачи.</param>
+            <param name="request">Тело запроса с новым значением статуса (<c>IsCompleted</c>).</param>
             <response code="200">Статус изменён, возвращаем обновлённый объект.</response>
             <response code="204">Статус уже имел переданное значение (идемпотентно, без изменений).</response>
             <response code="400">Некорректный запрос (нет поля IsCompleted или неверный формат).</response>
+            <response code="404">Задача не найдена.</response>
+        </member>
+        <member name="M:TaskManager.Api.Controllers.TasksController.Update(System.Int32,TaskManager.Api.Dtos.UpdateTaskRequest)">
+            <summary>
+            Полностью обновляет редактируемые поля задачи (без статуса).
+            </summary>
+            <param name="id">Идентификатор задачи.</param>
+            <param name="request">Тело запроса с новыми значениями полей (Title, Description, DueDate, Priority).</param>
+            <response code="200">Задача обновлена, возвращаем актуальный объект.</response>
+            <response code="204">Данные совпадают с текущими — изменений нет.</response>
+            <response code="400">Данные не прошли валидацию.</response>
             <response code="404">Задача не найдена.</response>
         </member>
         <member name="M:TaskManager.Api.Controllers.TasksController.Delete(System.Int32)">
@@ -89,9 +102,47 @@
             Приоритет: 0 = Low, 1 = Medium, 2 = High.
             </summary>
         </member>
+        <member name="T:TaskManager.Api.Dtos.PagedResult`1">
+            <summary>
+            Универсальная обёртка для постраничной выдачи.
+            </summary>
+        </member>
+        <member name="P:TaskManager.Api.Dtos.TaskListQuery.Page">
+            <summary>Номер страницы, начиная с 1. По умолчанию 1.</summary>
+        </member>
+        <member name="P:TaskManager.Api.Dtos.TaskListQuery.PageSize">
+            <summary>Размер страницы. По умолчанию 20. Максимум 100.</summary>
+        </member>
+        <member name="P:TaskManager.Api.Dtos.TaskListQuery.SortBy">
+            <summary>Поле сортировки: createdAt | dueDate | priority | title.</summary>
+        </member>
+        <member name="P:TaskManager.Api.Dtos.TaskListQuery.SortDir">
+            <summary>Направление сортировки: asc | desc.</summary>
+        </member>
+        <member name="P:TaskManager.Api.Dtos.TaskListQuery.IsCompleted">
+            <summary>Показывать завершённые/незавершённые. null — не фильтровать.</summary>
+        </member>
+        <member name="P:TaskManager.Api.Dtos.TaskListQuery.Priority">
+            <summary>Точный приоритет: 0=Low,1=Medium,2=High. null — не фильтровать.</summary>
+        </member>
+        <member name="P:TaskManager.Api.Dtos.TaskListQuery.Search">
+            <summary>Поиск по Title/Description (contains, case-insensitive).</summary>
+        </member>
+        <member name="P:TaskManager.Api.Dtos.TaskListQuery.DueDateFrom">
+            <summary>Дедлайн не раньше этой даты (UTC). null — без нижней границы.</summary>
+        </member>
+        <member name="P:TaskManager.Api.Dtos.TaskListQuery.DueDateTo">
+            <summary>Дедлайн не позже этой даты (UTC). null — без верхней границы.</summary>
+        </member>
         <member name="T:TaskManager.Api.Dtos.TaskItemDto">
             <summary>
             Публичная форма задачи для отдачи во внешний мир (REST API).
+            </summary>
+        </member>
+        <member name="T:TaskManager.Api.Dtos.UpdateTaskRequest">
+            <summary>
+            Полное обновление редактируемых полей задачи.
+            Статус меняется отдельным PATCH /status.
             </summary>
         </member>
         <member name="T:TaskManager.Api.Dtos.UpdateTaskStatusRequest">

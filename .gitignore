@@ -1,0 +1,31 @@
+# Build outputs
+bin/
+obj/
+out/
+*.log
+
+# User-secrets (dotnet)
+**/secrets.json
+
+# Docker
+.env
+*.env
+
+# Visual Studio / Rider
+.vs/
+.idea/
+*.user
+*.suo
+*.userosscache
+*.sln.docstates
+
+# VS Code
+.vscode/
+*.code-workspace
+
+# System
+.DS_Store
+Thumbs.db
+
+# Resharper
+_ReSharper.Caches/
