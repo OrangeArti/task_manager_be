@@ -9,5 +9,8 @@ namespace TaskManager.Api.Models
         public bool IsCompleted { get; set; } = false;
         public int Priority { get; set; } = 0;
         public DateTime CreatedAt { get; set; } = DateTime.UtcNow;
+        public bool IsPublic { get; set; } = false;
+        public string? OwnerId { get; set; } 
+        public ApplicationUser? Owner { get; set; }
     }
 }

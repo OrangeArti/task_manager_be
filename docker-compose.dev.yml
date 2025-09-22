@@ -2,6 +2,7 @@ services:
   mssql:
     image: mcr.microsoft.com/mssql/server:2022-latest
     container_name: mssql2022
+    platform: linux/amd64
     restart: unless-stopped
     ports:
       - "1433:1433"
@@ -15,7 +16,29 @@ services:
       interval: 10s
       timeout: 5s
       retries: 10
-    platform: linux/amd64
+
+  api:
+    build:
+      context: .
+      dockerfile: TaskManager.Api/Dockerfile
+    container_name: taskmanager_api
+    depends_on:
+      mssql:
+        condition: service_healthy
+    environment:
+      ASPNETCORE_ENVIRONMENT: "Development"
+      ASPNETCORE_URLS: "http://+:8080"
+      DisableHttps: "true"
+
+      # строка подключения внутри сети compose
+      ConnectionStrings__DefaultConnection: "Server=mssql,1433;Database=TaskManagerDb;User Id=sa;Password=${MSSQL_SA_PASSWORD};Encrypt=False;TrustServerCertificate=True"
+
+      # 🔐 JWT для контейнера (двойные подчёркивания = двоеточие в IConfiguration)
+      Jwt__Key: "${JWT_KEY}"
+      Jwt__Issuer: "${JWT_ISSUER}"
+    ports:
+      - "8080:8080"
+    restart: unless-stopped
 
 volumes:
   mssql_data:

@@ -1,0 +1,13 @@
+bin/
+obj/
+out/
+*.user
+*.suo
+*.sw?
+.vs/
+.vscode/
+.idea/
+.git
+.gitignore
+Dockerfile
+docker-compose*

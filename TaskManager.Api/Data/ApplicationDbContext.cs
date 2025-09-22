@@ -1,28 +1,37 @@
+using Microsoft.AspNetCore.Identity.EntityFrameworkCore;
 using Microsoft.EntityFrameworkCore;
 using TaskManager.Api.Models;
 
 namespace TaskManager.Api.Data
 {
-    public class ApplicationDbContext : DbContext
+    // ВАЖНО: наследуемся от IdentityDbContext<ApplicationUser>
+    public class ApplicationDbContext : IdentityDbContext<ApplicationUser>
     {
         public ApplicationDbContext(DbContextOptions<ApplicationDbContext> options)
             : base(options) { }
+
         public DbSet<TaskItem> Tasks => Set<TaskItem>();
+
         protected override void OnModelCreating(ModelBuilder modelBuilder)
         {
-            base.OnModelCreating(modelBuilder);
+            base.OnModelCreating(modelBuilder); // не убирать, это регистрирует таблицы Identity
 
             modelBuilder.Entity<TaskItem>(e =>
             {
-                e.ToTable("Tasks");
-                e.HasKey(x => x.Id);
-                e.Property(x => x.Title).IsRequired().HasMaxLength(200);
-                e.Property(x => x.Description).HasMaxLength(4000);
-                e.Property(x => x.Priority).HasDefaultValue(0);
-                e.Property(x => x.IsCompleted).HasDefaultValue(false);
-                e.Property(x => x.CreatedAt).HasDefaultValueSql("GETUTCDATE()");
-            }
-            );
+                e.HasKey(t => t.Id);
+                e.Property(t => t.Title).HasMaxLength(200).IsRequired();
+                e.Property(t => t.Description).HasMaxLength(4000);
+                e.Property(t => t.Priority).HasDefaultValue(0);
+                e.Property(t => t.IsCompleted).HasDefaultValue(false);
+                e.Property(t => t.CreatedAt).HasDefaultValueSql("GETUTCDATE()");
+                e.Property(t => t.IsPublic).HasDefaultValue(false);
+                e.HasIndex(t => t.OwnerId);
+                e.HasOne(t => t.Owner)
+                    .WithMany()
+                    .HasForeignKey(t => t.OwnerId)
+                    .OnDelete(DeleteBehavior.SetNull);
+                // при необходимости — остальные связи/индексы
+            });
         }
     }
 }

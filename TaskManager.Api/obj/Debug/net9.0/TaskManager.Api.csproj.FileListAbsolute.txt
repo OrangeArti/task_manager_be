@@ -168,3 +168,9 @@
 /Users/artem/Desktop/portfolio_project/task-manager-backend/TaskManager.Api/obj/Debug/net9.0/TaskManager.Api.pdb
 /Users/artem/Desktop/portfolio_project/task-manager-backend/TaskManager.Api/obj/Debug/net9.0/TaskManager.Api.genruntimeconfig.cache
 /Users/artem/Desktop/portfolio_project/task-manager-backend/TaskManager.Api/obj/Debug/net9.0/ref/TaskManager.Api.dll
+/Users/artem/Desktop/portfolio_project/task-manager-backend/TaskManager.Api/bin/Debug/net9.0/Microsoft.AspNetCore.Authentication.JwtBearer.dll
+/Users/artem/Desktop/portfolio_project/task-manager-backend/TaskManager.Api/bin/Debug/net9.0/Microsoft.AspNetCore.Cryptography.Internal.dll
+/Users/artem/Desktop/portfolio_project/task-manager-backend/TaskManager.Api/bin/Debug/net9.0/Microsoft.AspNetCore.Cryptography.KeyDerivation.dll
+/Users/artem/Desktop/portfolio_project/task-manager-backend/TaskManager.Api/bin/Debug/net9.0/Microsoft.AspNetCore.Identity.EntityFrameworkCore.dll
+/Users/artem/Desktop/portfolio_project/task-manager-backend/TaskManager.Api/bin/Debug/net9.0/Microsoft.Extensions.Identity.Core.dll
+/Users/artem/Desktop/portfolio_project/task-manager-backend/TaskManager.Api/bin/Debug/net9.0/Microsoft.Extensions.Identity.Stores.dll

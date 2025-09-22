@@ -3,6 +3,8 @@ using Microsoft.EntityFrameworkCore;
 using TaskManager.Api.Data;
 using TaskManager.Api.Dtos;
 using TaskManager.Api.Models;
+using Microsoft.AspNetCore.Authorization;
+using System.Security.Claims;
 
 namespace TaskManager.Api.Controllers
 {
@@ -11,6 +13,7 @@ namespace TaskManager.Api.Controllers
     /// </summary>
     [ApiController]
     [Route("api/[controller]")]
+    [Authorize] // позже ограничим ролью/политикой
     [Produces("application/json")]
     public class TasksController : ControllerBase
     {
@@ -19,6 +22,15 @@ namespace TaskManager.Api.Controllers
         public TasksController(ApplicationDbContext db)
         {
             _db = db;
+        }
+
+        /// <summary>
+        /// Возвращает идентификатор текущего пользователя из клеймов (NameIdentifier или sub).
+        /// </summary>
+        private string? GetCurrentUserId()
+        {
+            return User.FindFirstValue(System.Security.Claims.ClaimTypes.NameIdentifier)
+                ?? User.FindFirstValue("sub");
         }
 
         /// <summary>
@@ -37,8 +49,14 @@ namespace TaskManager.Api.Controllers
             var (sortBy, desc) = query.NormalizeSorting();
             var search = query.NormalizeSearch();
 
-            // Базовый запрос (не материализуем)
-            var q = _db.Tasks.AsNoTracking();
+            var userId = GetCurrentUserId();
+            if (string.IsNullOrEmpty(userId))
+                return Unauthorized();
+
+    // 2) Базовый запрос: только задачи текущего пользователя
+            var q = _db.Tasks
+                .AsNoTracking()
+                .Where(t => t.OwnerId == userId);
 
             // --- ФИЛЬТРЫ ---
             if (query.IsCompleted.HasValue)
@@ -130,13 +148,18 @@ namespace TaskManager.Api.Controllers
                 return ValidationProblem(ModelState);
             }
 
+            var userId = GetCurrentUserId();
+            if (string.IsNullOrEmpty(userId))
+                return Unauthorized();
+
             var entity = new TaskItem
             {
                 Title = request.Title.Trim(),
                 Description = string.IsNullOrWhiteSpace(request.Description) ? null : request.Description.Trim(),
                 DueDate = request.DueDate,
-                Priority = request.Priority
+                Priority = request.Priority,
                 // IsCompleted и CreatedAt проставятся по умолчанию конфигурацией/моделью
+                OwnerId = userId
             };
 
             _db.Add(entity);
@@ -169,11 +192,18 @@ namespace TaskManager.Api.Controllers
         [HttpGet("{id:int}", Name = "GetTaskById")]
         [ProducesResponseType(StatusCodes.Status200OK)]
         [ProducesResponseType(StatusCodes.Status404NotFound)]
+        [ProducesResponseType(StatusCodes.Status403Forbidden)]
         public async Task<ActionResult<TaskItemDto>> GetById([FromRoute] int id)
         {
+            // берём текущего пользователя (двойной способ)
+            var currentUserId = GetCurrentUserId();
+            if (string.IsNullOrEmpty(currentUserId))
+                return Unauthorized();
+
+            // один запрос: фильтруем и по Id, и по владельцу
             var item = await _db.Tasks
                 .AsNoTracking()
-                .Where(t => t.Id == id)
+                .Where(t => t.Id == id && t.OwnerId == currentUserId)
                 .Select(t => new TaskItemDto
                 {
                     Id = t.Id,
@@ -206,6 +236,7 @@ namespace TaskManager.Api.Controllers
         [ProducesResponseType(StatusCodes.Status204NoContent)]
         [ProducesResponseType(StatusCodes.Status400BadRequest)]
         [ProducesResponseType(StatusCodes.Status404NotFound)]
+        [ProducesResponseType(StatusCodes.Status403Forbidden)]
         public async Task<IActionResult> UpdateStatus([FromRoute] int id, [FromBody] UpdateTaskStatusRequest request)
         {
             if (!ModelState.IsValid)
@@ -214,6 +245,10 @@ namespace TaskManager.Api.Controllers
             var entity = await _db.Tasks.FirstOrDefaultAsync(t => t.Id == id);
             if (entity is null)
                 return NotFound(new { message = $"Task #{id} not found" });
+
+            var currentUserId = GetCurrentUserId();
+            if (string.IsNullOrEmpty(currentUserId)) return Unauthorized();
+            if (entity.OwnerId != currentUserId) return Forbid();
 
             var newValue = request.IsCompleted!.Value;
 
@@ -251,6 +286,7 @@ namespace TaskManager.Api.Controllers
         [ProducesResponseType(StatusCodes.Status204NoContent)]
         [ProducesResponseType(StatusCodes.Status400BadRequest)]
         [ProducesResponseType(StatusCodes.Status404NotFound)]
+        [ProducesResponseType(StatusCodes.Status403Forbidden)]
         public async Task<IActionResult> Update([FromRoute] int id, [FromBody] UpdateTaskRequest request)
         {
             if (!ModelState.IsValid)
@@ -259,6 +295,10 @@ namespace TaskManager.Api.Controllers
             var entity = await _db.Tasks.FirstOrDefaultAsync(t => t.Id == id);
             if (entity is null)
                 return NotFound(new { message = $"Task #{id} not found" });
+
+            var currentUserId = GetCurrentUserId();
+            if (string.IsNullOrEmpty(currentUserId)) return Unauthorized();
+            if (entity.OwnerId != currentUserId) return Forbid();
 
             // Доменная проверка: дедлайн не в прошлом
             if (request.DueDate.HasValue && request.DueDate.Value < DateTime.UtcNow.Date)
@@ -314,11 +354,16 @@ namespace TaskManager.Api.Controllers
         [HttpDelete("{id:int}")]
         [ProducesResponseType(StatusCodes.Status204NoContent)]
         [ProducesResponseType(StatusCodes.Status404NotFound)]
+        [ProducesResponseType(StatusCodes.Status403Forbidden)]
         public async Task<IActionResult> Delete([FromRoute] int id)
         {
             var entity = await _db.Tasks.FindAsync(id);
             if (entity is null)
                 return NotFound(new { message = $"Task #{id} not found" });
+
+            var currentUserId = GetCurrentUserId();
+            if (string.IsNullOrEmpty(currentUserId)) return Unauthorized();
+            if (entity.OwnerId != currentUserId) return Forbid();
 
             _db.Tasks.Remove(entity);
             await _db.SaveChangesAsync();

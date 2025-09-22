@@ -4,6 +4,12 @@
         <name>TaskManager.Api</name>
     </assembly>
     <members>
+        <member name="M:TaskManager.Api.Controllers.AuthController.Register(TaskManager.Api.Dtos.RegisterRequest)">
+            <summary>Register new user and return JWT</summary>
+        </member>
+        <member name="M:TaskManager.Api.Controllers.AuthController.Login(TaskManager.Api.Dtos.LoginRequest)">
+            <summary>Login and return JWT</summary>
+        </member>
         <member name="T:TaskManager.Api.Controllers.HealthController">
             <summary>
             Health-check эндпоинты сервиса.
@@ -20,6 +26,11 @@
         <member name="T:TaskManager.Api.Controllers.TasksController">
             <summary>
             CRUD по задачам: список, создание, изменение статуса, получение по id.
+            </summary>
+        </member>
+        <member name="M:TaskManager.Api.Controllers.TasksController.GetCurrentUserId">
+            <summary>
+            Возвращает идентификатор текущего пользователя из клеймов (NameIdentifier или sub).
             </summary>
         </member>
         <member name="M:TaskManager.Api.Controllers.TasksController.GetAll(TaskManager.Api.Dtos.TaskListQuery)">
@@ -76,6 +87,12 @@
             <param name="id">Идентификатор задачи.</param>
             <response code="204">Задача успешно удалена.</response>
             <response code="404">Задача не найдена.</response>
+        </member>
+        <member name="M:TaskManager.Api.Controllers.UsersController.GetAll(System.Int32,System.Int32,System.String)">
+            <summary>Пагинированный список пользователей с поиском по email/displayName</summary>
+        </member>
+        <member name="M:TaskManager.Api.Controllers.UsersController.Delete(System.String)">
+            <summary>Удалить пользователя по Id. Личные задачи удаляются, публичные остаются без владельца.</summary>
         </member>
         <member name="T:TaskManager.Api.Dtos.CreateTaskRequest">
             <summary>
@@ -166,6 +183,63 @@
             <inheritdoc />
         </member>
         <member name="M:TaskManager.Api.Migrations.InitialCreate.BuildTargetModel(Microsoft.EntityFrameworkCore.ModelBuilder)">
+            <inheritdoc />
+        </member>
+        <member name="T:TaskManager.Api.Migrations.AddIdentitySupport">
+            <inheritdoc />
+        </member>
+        <member name="M:TaskManager.Api.Migrations.AddIdentitySupport.Up(Microsoft.EntityFrameworkCore.Migrations.MigrationBuilder)">
+            <inheritdoc />
+        </member>
+        <member name="M:TaskManager.Api.Migrations.AddIdentitySupport.Down(Microsoft.EntityFrameworkCore.Migrations.MigrationBuilder)">
+            <inheritdoc />
+        </member>
+        <member name="M:TaskManager.Api.Migrations.AddIdentitySupport.BuildTargetModel(Microsoft.EntityFrameworkCore.ModelBuilder)">
+            <inheritdoc />
+        </member>
+        <member name="T:TaskManager.Api.Migrations.AddOwnerIdToTaskItem">
+            <inheritdoc />
+        </member>
+        <member name="M:TaskManager.Api.Migrations.AddOwnerIdToTaskItem.Up(Microsoft.EntityFrameworkCore.Migrations.MigrationBuilder)">
+            <inheritdoc />
+        </member>
+        <member name="M:TaskManager.Api.Migrations.AddOwnerIdToTaskItem.Down(Microsoft.EntityFrameworkCore.Migrations.MigrationBuilder)">
+            <inheritdoc />
+        </member>
+        <member name="M:TaskManager.Api.Migrations.AddOwnerIdToTaskItem.BuildTargetModel(Microsoft.EntityFrameworkCore.ModelBuilder)">
+            <inheritdoc />
+        </member>
+        <member name="T:TaskManager.Api.Migrations.TaskItem_AddOwnerNavigation">
+            <inheritdoc />
+        </member>
+        <member name="M:TaskManager.Api.Migrations.TaskItem_AddOwnerNavigation.Up(Microsoft.EntityFrameworkCore.Migrations.MigrationBuilder)">
+            <inheritdoc />
+        </member>
+        <member name="M:TaskManager.Api.Migrations.TaskItem_AddOwnerNavigation.BuildTargetModel(Microsoft.EntityFrameworkCore.ModelBuilder)">
+            <inheritdoc />
+        </member>
+        <member name="T:TaskManager.Api.Migrations.AddIsPublicToTaskItem">
+            <inheritdoc />
+        </member>
+        <member name="M:TaskManager.Api.Migrations.AddIsPublicToTaskItem.Up(Microsoft.EntityFrameworkCore.Migrations.MigrationBuilder)">
+            <inheritdoc />
+        </member>
+        <member name="M:TaskManager.Api.Migrations.AddIsPublicToTaskItem.Down(Microsoft.EntityFrameworkCore.Migrations.MigrationBuilder)">
+            <inheritdoc />
+        </member>
+        <member name="M:TaskManager.Api.Migrations.AddIsPublicToTaskItem.BuildTargetModel(Microsoft.EntityFrameworkCore.ModelBuilder)">
+            <inheritdoc />
+        </member>
+        <member name="T:TaskManager.Api.Migrations.RenameIsPublicProperty">
+            <inheritdoc />
+        </member>
+        <member name="M:TaskManager.Api.Migrations.RenameIsPublicProperty.Up(Microsoft.EntityFrameworkCore.Migrations.MigrationBuilder)">
+            <inheritdoc />
+        </member>
+        <member name="M:TaskManager.Api.Migrations.RenameIsPublicProperty.Down(Microsoft.EntityFrameworkCore.Migrations.MigrationBuilder)">
+            <inheritdoc />
+        </member>
+        <member name="M:TaskManager.Api.Migrations.RenameIsPublicProperty.BuildTargetModel(Microsoft.EntityFrameworkCore.ModelBuilder)">
             <inheritdoc />
         </member>
     </members>
