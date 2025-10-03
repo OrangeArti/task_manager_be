@@ -30,7 +30,10 @@ namespace TaskManager.Api.Data
                     .WithMany()
                     .HasForeignKey(t => t.OwnerId)
                     .OnDelete(DeleteBehavior.SetNull);
-                // при необходимости — остальные связи/индексы
+                e.Property(t => t.IsProblem).HasDefaultValue(false);
+                e.Property(t => t.ProblemDescription).HasMaxLength(2000);
+                e.Property(t => t.ProblemReporterId).HasMaxLength(450);
+                e.HasIndex(t => t.IsProblem);
             });
         }
     }

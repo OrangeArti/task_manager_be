@@ -18,5 +18,7 @@ namespace TaskManager.Api.Dtos
 
         [Range(0, 2)]
         public int Priority { get; set; } = 0;
+
+        public bool? IsPublic { get; set; }
     }
 }

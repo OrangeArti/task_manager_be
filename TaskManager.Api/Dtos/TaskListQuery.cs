@@ -38,6 +38,8 @@ namespace TaskManager.Api.Dtos
         /// <summary>Дедлайн не позже этой даты (UTC). null — без верхней границы.</summary>
         public DateTime? DueDateTo { get; init; }
 
+        public bool? IsPublic { get; set; }
+
         // нормализуем значения, чтобы избежать if в контроллере
         public (int page, int pageSize) NormalizePaging()
         {

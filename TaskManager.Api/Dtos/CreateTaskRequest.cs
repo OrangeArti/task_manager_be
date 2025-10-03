@@ -29,5 +29,10 @@ namespace TaskManager.Api.Dtos
         /// </summary>
         [Range(0, 2)]
         public int Priority { get; set; } = 0;
+
+        /// <summary>
+        /// Публичная задача или нет. По умолчанию false (задача приватная).
+        /// </summary>
+        public bool? IsPublic { get; set; }
     }
 }

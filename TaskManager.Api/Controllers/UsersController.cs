@@ -81,52 +81,66 @@ namespace TaskManager.Api.Controllers
         {
             // safeguard: нельзя удалить самого себя
             var me = User.FindFirst(System.Security.Claims.ClaimTypes.NameIdentifier)?.Value
-                  ?? User.FindFirst("sub")?.Value;
+                ?? User.FindFirst("sub")?.Value;
             if (me == id)
                 return BadRequest("Нельзя удалить самого себя.");
 
-            var user = await _userManager.FindByIdAsync(id);
-            if (user == null)
-                return NotFound(new { message = $"User '{id}' not found" });
+            // Выполним всё в рамках ExecutionStrategy + транзакции
+            var strategy = _db.Database.CreateExecutionStrategy();
 
-            // Одна транзакция: обработка задач + удаление пользователя
-            await using var tx = await _db.Database.BeginTransactionAsync();
+            IActionResult? resultToReturn = null; // захватим результат из лямбды
 
-            // 1) Забираем все задачи пользователя
-            var tasks = await _db.Tasks.Where(t => t.OwnerId == id).ToListAsync();
-
-            // 2) Делим на личные и публичные
-            var personal = tasks.Where(t => !t.IsPublic).ToList();
-            var publicOnes = tasks.Where(t => t.IsPublic).ToList();
-
-            // 3) Личные — удаляем
-            if (personal.Count > 0)
-                _db.Tasks.RemoveRange(personal);
-
-            // 4) Публичные — оставляем, но «обезличиваем»
-            if (publicOnes.Count > 0)
+            await strategy.ExecuteAsync(async () =>
             {
-                foreach (var t in publicOnes)
-                    t.OwnerId = null;
+                await using var tx = await _db.Database.BeginTransactionAsync();
 
-                _db.Tasks.UpdateRange(publicOnes);
-            }
+                var user = await _userManager.FindByIdAsync(id);
+                if (user is null)
+                {
+                    // ничего не меняли — просто выходим
+                    resultToReturn = NotFound(new { message = $"User '{id}' not found" });
+                    await tx.RollbackAsync();
+                    return;
+                }
 
-            await _db.SaveChangesAsync();
+                // 1) Забираем все задачи пользователя
+                var tasks = await _db.Tasks.Where(t => t.OwnerId == id).ToListAsync();
 
-            // 5) Удаляем пользователя через Identity
-            var result = await _userManager.DeleteAsync(user);
-            if (!result.Succeeded)
-            {
-                await tx.RollbackAsync();
-                var errors = string.Join("; ", result.Errors.Select(e => $"{e.Code}: {e.Description}"));
-                return Problem(detail: errors, statusCode: StatusCodes.Status500InternalServerError);
-            }
+                // 2) Делим на личные и публичные
+                var personal = tasks.Where(t => !t.IsPublic).ToList();
+                var publicOnes = tasks.Where(t => t.IsPublic).ToList();
 
-            await _db.SaveChangesAsync();
-            await tx.CommitAsync();
+                // 3) Личные — удаляем
+                if (personal.Count > 0)
+                    _db.Tasks.RemoveRange(personal);
 
-            return NoContent();
+                // 4) Публичные — обезличиваем
+                if (publicOnes.Count > 0)
+                {
+                    foreach (var t in publicOnes)
+                        t.OwnerId = null;
+
+                    _db.Tasks.UpdateRange(publicOnes);
+                }
+
+                await _db.SaveChangesAsync();
+
+                // 5) Удаляем пользователя через Identity
+                var del = await _userManager.DeleteAsync(user);
+                if (!del.Succeeded)
+                {
+                    var errors = string.Join("; ", del.Errors.Select(e => $"{e.Code}: {e.Description}"));
+                    resultToReturn = Problem(detail: errors, statusCode: StatusCodes.Status500InternalServerError);
+                    await tx.RollbackAsync();
+                    return;
+                }
+
+                await tx.CommitAsync();
+                resultToReturn = NoContent();
+            });
+
+            // сюда придём уже после ExecuteAsync
+            return resultToReturn ?? NoContent();
         }
     }
 }

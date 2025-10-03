@@ -53,10 +53,10 @@ namespace TaskManager.Api.Controllers
             if (string.IsNullOrEmpty(userId))
                 return Unauthorized();
 
-    // 2) Базовый запрос: только задачи текущего пользователя
+            // 2) Базовый запрос: только задачи текущего пользователя
             var q = _db.Tasks
                 .AsNoTracking()
-                .Where(t => t.OwnerId == userId);
+                .Where(t => t.OwnerId == userId || t.IsPublic); // показываем публичные задачи
 
             // --- ФИЛЬТРЫ ---
             if (query.IsCompleted.HasValue)
@@ -64,6 +64,9 @@ namespace TaskManager.Api.Controllers
 
             if (query.Priority.HasValue)
                 q = q.Where(t => t.Priority == query.Priority.Value);
+
+            if (query.IsPublic.HasValue)
+                q = q.Where(t => t.IsPublic == query.IsPublic.Value);
 
             if (search is not null)
             {
@@ -85,16 +88,16 @@ namespace TaskManager.Api.Controllers
             q = (sortBy, desc) switch
             {
                 ("createdAt", false) => q.OrderBy(t => t.CreatedAt),
-                ("createdAt", true)  => q.OrderByDescending(t => t.CreatedAt),
+                ("createdAt", true) => q.OrderByDescending(t => t.CreatedAt),
 
-                ("dueDate", false)   => q.OrderBy(t => t.DueDate),
-                ("dueDate", true)    => q.OrderByDescending(t => t.DueDate),
+                ("dueDate", false) => q.OrderBy(t => t.DueDate),
+                ("dueDate", true) => q.OrderByDescending(t => t.DueDate),
 
-                ("priority", false)  => q.OrderBy(t => t.Priority),
-                ("priority", true)   => q.OrderByDescending(t => t.Priority),
+                ("priority", false) => q.OrderBy(t => t.Priority),
+                ("priority", true) => q.OrderByDescending(t => t.Priority),
 
-                ("title", false)     => q.OrderBy(t => t.Title),
-                ("title", true)      => q.OrderByDescending(t => t.Title),
+                ("title", false) => q.OrderBy(t => t.Title),
+                ("title", true) => q.OrderByDescending(t => t.Title),
 
                 _ => q.OrderByDescending(t => t.CreatedAt)
             };
@@ -116,7 +119,12 @@ namespace TaskManager.Api.Controllers
                     DueDate = t.DueDate,
                     IsCompleted = t.IsCompleted,
                     Priority = t.Priority,
-                    CreatedAt = t.CreatedAt
+                    CreatedAt = t.CreatedAt,
+                    IsPublic = t.IsPublic,
+                    IsProblem = t.IsProblem,
+                    ProblemDescription = t.ProblemDescription,
+                    ProblemReporterId = t.ProblemReporterId,
+                    ProblemReportedAt = t.ProblemReportedAt
                 })
                 .ToListAsync();
 
@@ -159,7 +167,8 @@ namespace TaskManager.Api.Controllers
                 DueDate = request.DueDate,
                 Priority = request.Priority,
                 // IsCompleted и CreatedAt проставятся по умолчанию конфигурацией/моделью
-                OwnerId = userId
+                OwnerId = userId,
+                IsPublic = request.IsPublic ?? false
             };
 
             _db.Add(entity);
@@ -173,7 +182,12 @@ namespace TaskManager.Api.Controllers
                 DueDate = entity.DueDate,
                 IsCompleted = entity.IsCompleted,
                 Priority = entity.Priority,
-                CreatedAt = entity.CreatedAt
+                CreatedAt = entity.CreatedAt,
+                IsPublic = entity.IsPublic,
+                IsProblem = entity.IsProblem,
+                ProblemDescription = entity.ProblemDescription,
+                ProblemReporterId = entity.ProblemReporterId,
+                ProblemReportedAt = entity.ProblemReportedAt
             };
 
             return CreatedAtRoute(
@@ -203,7 +217,7 @@ namespace TaskManager.Api.Controllers
             // один запрос: фильтруем и по Id, и по владельцу
             var item = await _db.Tasks
                 .AsNoTracking()
-                .Where(t => t.Id == id && t.OwnerId == currentUserId)
+                .Where(t => t.Id == id && (t.OwnerId == currentUserId || t.IsPublic))
                 .Select(t => new TaskItemDto
                 {
                     Id = t.Id,
@@ -212,7 +226,12 @@ namespace TaskManager.Api.Controllers
                     DueDate = t.DueDate,
                     IsCompleted = t.IsCompleted,
                     Priority = t.Priority,
-                    CreatedAt = t.CreatedAt
+                    CreatedAt = t.CreatedAt,
+                    IsPublic = t.IsPublic,
+                    IsProblem = t.IsProblem,
+                    ProblemDescription = t.ProblemDescription,
+                    ProblemReporterId = t.ProblemReporterId,
+                    ProblemReportedAt = t.ProblemReportedAt
                 })
                 .FirstOrDefaultAsync();
 
@@ -266,7 +285,12 @@ namespace TaskManager.Api.Controllers
                 DueDate = entity.DueDate,
                 IsCompleted = entity.IsCompleted,
                 Priority = entity.Priority,
-                CreatedAt = entity.CreatedAt
+                CreatedAt = entity.CreatedAt,
+                IsPublic = entity.IsPublic,
+                IsProblem = entity.IsProblem,
+                ProblemDescription = entity.ProblemDescription,
+                ProblemReporterId = entity.ProblemReporterId,
+                ProblemReportedAt = entity.ProblemReportedAt
             };
 
             return Ok(dto);
@@ -318,7 +342,8 @@ namespace TaskManager.Api.Controllers
                 entity.Title == newTitle &&
                 entity.Description == newDescription &&
                 entity.DueDate == request.DueDate &&
-                entity.Priority == request.Priority;
+                entity.Priority == request.Priority &&
+                (request.IsPublic == null || entity.IsPublic == request.IsPublic.Value);
 
             if (noChanges)
                 return NoContent();
@@ -328,6 +353,8 @@ namespace TaskManager.Api.Controllers
             entity.Description = newDescription;
             entity.DueDate = request.DueDate;
             entity.Priority = request.Priority;
+            if (request.IsPublic.HasValue)
+                entity.IsPublic = request.IsPublic.Value;
 
             await _db.SaveChangesAsync();
 
@@ -339,7 +366,12 @@ namespace TaskManager.Api.Controllers
                 DueDate = entity.DueDate,
                 IsCompleted = entity.IsCompleted, // статус трогает отдельный PATCH /status
                 Priority = entity.Priority,
-                CreatedAt = entity.CreatedAt
+                CreatedAt = entity.CreatedAt,
+                IsPublic = entity.IsPublic,
+                IsProblem = entity.IsProblem,
+                ProblemDescription = entity.ProblemDescription,
+                ProblemReporterId = entity.ProblemReporterId,
+                ProblemReportedAt = entity.ProblemReportedAt
             };
 
             return Ok(dto);
@@ -369,6 +401,128 @@ namespace TaskManager.Api.Controllers
             await _db.SaveChangesAsync();
 
             return NoContent();
+        }
+
+        /// <summary>
+        /// Пометить задачу как проблемную (с описанием).
+        /// </summary>
+        /// <response code="200">Задача помечена как проблемная (возвращает обновлённый объект).</response>
+        /// <response code="204">Состояние уже было таким же (идемпотентно, без изменений).</response>
+        /// <response code="400">Некорректное тело запроса.</response>
+        /// <response code="401">Не авторизован.</response>
+        /// <response code="403">Нет прав на изменение (не владелец).</response>
+        /// <response code="404">Задача не найдена.</response>
+        [HttpPatch("{id:int}/problem")]
+        [ProducesResponseType(StatusCodes.Status200OK)]
+        [ProducesResponseType(StatusCodes.Status204NoContent)]
+        [ProducesResponseType(StatusCodes.Status400BadRequest)]
+        [ProducesResponseType(StatusCodes.Status401Unauthorized)]
+        [ProducesResponseType(StatusCodes.Status403Forbidden)]
+        [ProducesResponseType(StatusCodes.Status404NotFound)]
+        public async Task<IActionResult> MarkProblem([FromRoute] int id, [FromBody] MarkProblemRequest request)
+        {
+            if (!ModelState.IsValid)
+                return ValidationProblem(ModelState);
+
+            var currentUserId = User.FindFirstValue(ClaimTypes.NameIdentifier) ?? User.FindFirstValue("sub");
+            if (string.IsNullOrEmpty(currentUserId))
+                return Unauthorized();
+
+            var entity = await _db.Tasks.FirstOrDefaultAsync(t => t.Id == id);
+            if (entity is null)
+                return NotFound(new { message = $"Task #{id} not found" });
+
+            if (entity.OwnerId != currentUserId)
+                return Forbid();
+
+            var newDescription = request.Description.Trim();
+
+            // идемпотентность: уже проблемная с тем же текстом
+            if (entity.IsProblem && string.Equals(entity.ProblemDescription ?? "", newDescription, StringComparison.Ordinal))
+                return NoContent();
+
+            entity.IsProblem = true;
+            entity.ProblemDescription = newDescription;
+            entity.ProblemReporterId = currentUserId;
+            entity.ProblemReportedAt = DateTime.UtcNow;
+
+            await _db.SaveChangesAsync();
+
+            var dto = new TaskItemDto
+            {
+                Id = entity.Id,
+                Title = entity.Title,
+                Description = entity.Description,
+                DueDate = entity.DueDate,
+                IsCompleted = entity.IsCompleted,
+                Priority = entity.Priority,
+                CreatedAt = entity.CreatedAt,
+                IsPublic = entity.IsPublic,
+
+                IsProblem = entity.IsProblem,
+                ProblemDescription = entity.ProblemDescription,
+                ProblemReporterId = entity.ProblemReporterId,
+                ProblemReportedAt = entity.ProblemReportedAt
+            };
+
+            return Ok(dto);
+        }
+
+        /// <summary>
+        /// Снять пометку «проблемная» с задачи.
+        /// </summary>
+        /// <response code="200">Проблема снята (возвращает обновлённый объект).</response>
+        /// <response code="204">Задача уже была без проблемы.</response>
+        /// <response code="401">Не авторизован.</response>
+        /// <response code="403">Нет прав на изменение (не владелец).</response>
+        /// <response code="404">Задача не найдена.</response>
+        [HttpDelete("{id:int}/problem")]
+        [ProducesResponseType(StatusCodes.Status200OK)]
+        [ProducesResponseType(StatusCodes.Status204NoContent)]
+        [ProducesResponseType(StatusCodes.Status401Unauthorized)]
+        [ProducesResponseType(StatusCodes.Status403Forbidden)]
+        [ProducesResponseType(StatusCodes.Status404NotFound)]
+        public async Task<IActionResult> UnmarkProblem([FromRoute] int id)
+        {
+            var currentUserId = User.FindFirstValue(ClaimTypes.NameIdentifier) ?? User.FindFirstValue("sub");
+            if (string.IsNullOrEmpty(currentUserId))
+                return Unauthorized();
+
+            var entity = await _db.Tasks.FirstOrDefaultAsync(t => t.Id == id);
+            if (entity is null)
+                return NotFound(new { message = $"Task #{id} not found" });
+
+            if (entity.OwnerId != currentUserId)
+                return Forbid();
+
+            if (!entity.IsProblem)
+                return NoContent();
+
+            entity.IsProblem = false;
+            entity.ProblemDescription = null;
+            entity.ProblemReporterId = null;
+            entity.ProblemReportedAt = null;
+
+            await _db.SaveChangesAsync();
+
+            var dto = new TaskItemDto
+            {
+                Id = entity.Id,
+                Title = entity.Title,
+                Description = entity.Description,
+                DueDate = entity.DueDate,
+                IsCompleted = entity.IsCompleted,
+                Priority = entity.Priority,
+                CreatedAt = entity.CreatedAt,
+                IsPublic = entity.IsPublic,
+
+                IsProblem = entity.IsProblem,
+                ProblemDescription = entity.ProblemDescription,
+                ProblemReporterId = entity.ProblemReporterId,
+                ProblemReportedAt = entity.ProblemReportedAt
+            };
+
+            return Ok(dto);
         }
     }
 }

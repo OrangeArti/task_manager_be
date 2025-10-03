@@ -242,5 +242,17 @@
         <member name="M:TaskManager.Api.Migrations.RenameIsPublicProperty.BuildTargetModel(Microsoft.EntityFrameworkCore.ModelBuilder)">
             <inheritdoc />
         </member>
+        <member name="T:TaskManager.Api.Migrations.TaskItem_ProblemFields">
+            <inheritdoc />
+        </member>
+        <member name="M:TaskManager.Api.Migrations.TaskItem_ProblemFields.Up(Microsoft.EntityFrameworkCore.Migrations.MigrationBuilder)">
+            <inheritdoc />
+        </member>
+        <member name="M:TaskManager.Api.Migrations.TaskItem_ProblemFields.Down(Microsoft.EntityFrameworkCore.Migrations.MigrationBuilder)">
+            <inheritdoc />
+        </member>
+        <member name="M:TaskManager.Api.Migrations.TaskItem_ProblemFields.BuildTargetModel(Microsoft.EntityFrameworkCore.ModelBuilder)">
+            <inheritdoc />
+        </member>
     </members>
 </doc>
