@@ -36,6 +36,11 @@ services:
       # 🔐 JWT для контейнера (двойные подчёркивания = двоеточие в IConfiguration)
       Jwt__Key: "${JWT_KEY}"
       Jwt__Issuer: "${JWT_ISSUER}"
+
+      # 🔐 Данные администратора по умолчанию для контейнера
+      Admin__Email: "${Admin__Email}"
+      Admin__Password: "${Admin__Password}"
+      Admin__DisplayName: "${Admin__DisplayName}"
     ports:
       - "8080:8080"
     restart: unless-stopped

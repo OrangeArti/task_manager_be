@@ -128,6 +128,9 @@ using (var scope = app.Services.CreateScope())
 {
     var db = scope.ServiceProvider.GetRequiredService<ApplicationDbContext>();
     await db.Database.MigrateAsync();
+
+// 🔹 Сид ролей и админа
+    await IdentitySeeder.SeedAsync(app.Services, app.Configuration);
 }
 
 // Pipeline

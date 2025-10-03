@@ -43,7 +43,9 @@ namespace TaskManager.Api.Controllers
             if (!result.Succeeded)
                 return BadRequest(result.Errors);
 
-            var token = _jwt.CreateToken(user);
+            var roles = await _userManager.GetRolesAsync(user);
+            var token = _jwt.CreateToken(user, roles);
+
             return Ok(new AuthResponse
             {
                 Token = token,
@@ -65,7 +67,8 @@ namespace TaskManager.Api.Controllers
             if (!pwd.Succeeded)
                 return Unauthorized("Invalid credentials.");
 
-            var token = _jwt.CreateToken(user);
+            var roles = await _userManager.GetRolesAsync(user);
+            var token = _jwt.CreateToken(user, roles);
             return Ok(new AuthResponse
             {
                 Token = token,

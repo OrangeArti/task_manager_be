@@ -11,7 +11,7 @@ namespace TaskManager.Api.Controllers
 {
     [ApiController]
     [Route("api/[controller]")]
-    [Authorize] // позже ограничим ролью/политикой
+    [Authorize(Roles = "Admin")] // Administer user management
     public class UsersController : ControllerBase
     {
         private readonly ApplicationDbContext _db;
