@@ -12,6 +12,8 @@ namespace TaskManager.Api.Data
 
         public DbSet<TaskItem> Tasks => Set<TaskItem>();
 
+        public DbSet<RefreshToken> RefreshTokens { get; set; }
+
         protected override void OnModelCreating(ModelBuilder modelBuilder)
         {
             base.OnModelCreating(modelBuilder); // не убирать, это регистрирует таблицы Identity

@@ -3,6 +3,8 @@ using Microsoft.AspNetCore.Identity;
 using TaskManager.Api.Dtos;
 using TaskManager.Api.Models;
 using TaskManager.Api.Services;
+using TaskManager.Api.Data;
+using Microsoft.EntityFrameworkCore;
 
 namespace TaskManager.Api.Controllers
 {
@@ -13,15 +15,18 @@ namespace TaskManager.Api.Controllers
         private readonly UserManager<ApplicationUser> _userManager;
         private readonly SignInManager<ApplicationUser> _signInManager;
         private readonly IJwtTokenService _jwt;
+        private readonly ApplicationDbContext _db;
 
         public AuthController(
             UserManager<ApplicationUser> userManager,
             SignInManager<ApplicationUser> signInManager,
-            IJwtTokenService jwt)
+            IJwtTokenService jwt,
+            ApplicationDbContext db)
         {
             _userManager = userManager;
             _signInManager = signInManager;
             _jwt = jwt;
+            _db = db;
         }
 
         /// <summary>Register new user and return JWT</summary>
@@ -43,12 +48,36 @@ namespace TaskManager.Api.Controllers
             if (!result.Succeeded)
                 return BadRequest(result.Errors);
 
+            // Если юзер успешно создан — добавляем роль User
+            await _userManager.AddToRoleAsync(user, "User");
+
             var roles = await _userManager.GetRolesAsync(user);
             var token = _jwt.CreateToken(user, roles);
+
+            // удаляем просроченные refresh токены
+            var expired = _db.RefreshTokens.Where(r => r.ExpiresAt < DateTime.UtcNow);
+            _db.RefreshTokens.RemoveRange(expired);
+            await _db.SaveChangesAsync();
+
+            // 🔹 убираем старые активные refresh токены
+            var oldTokens = _db.RefreshTokens.Where(r => r.UserId == user.Id && !r.IsRevoked);
+            foreach (var t in oldTokens)
+                t.IsRevoked = true;
+            await _db.SaveChangesAsync();
+
+            var refresh = new RefreshToken
+            {
+                Token = Guid.NewGuid().ToString(),
+                UserId = user.Id,
+                ExpiresAt = DateTime.UtcNow.AddDays(7)
+            };
+            _db.RefreshTokens.Add(refresh);
+            await _db.SaveChangesAsync();
 
             return Ok(new AuthResponse
             {
                 Token = token,
+                RefreshToken = refresh.Token,
                 UserId = user.Id,
                 Email = user.Email ?? string.Empty,
                 DisplayName = user.DisplayName
@@ -69,13 +98,101 @@ namespace TaskManager.Api.Controllers
 
             var roles = await _userManager.GetRolesAsync(user);
             var token = _jwt.CreateToken(user, roles);
+
+            // удаляем просроченные refresh токены
+            var expired = _db.RefreshTokens.Where(r => r.ExpiresAt < DateTime.UtcNow);
+            _db.RefreshTokens.RemoveRange(expired);
+            await _db.SaveChangesAsync();
+
+            // 🔹 убираем старые активные refresh токены
+            var oldTokens = _db.RefreshTokens.Where(r => r.UserId == user.Id && !r.IsRevoked);
+            foreach (var t in oldTokens)
+                t.IsRevoked = true;
+            await _db.SaveChangesAsync();
+
+            var refresh = new RefreshToken
+            {
+                Token = Guid.NewGuid().ToString(),
+                UserId = user.Id,
+                ExpiresAt = DateTime.UtcNow.AddDays(7)
+            };
+            _db.RefreshTokens.Add(refresh);
+            await _db.SaveChangesAsync();
             return Ok(new AuthResponse
             {
                 Token = token,
+                RefreshToken = refresh.Token,
                 UserId = user.Id,
                 Email = user.Email ?? string.Empty,
                 DisplayName = user.DisplayName
             });
         }
+
+        /// <summary>Refresh JWT using a valid refresh token (with rotation)</summary>
+        [HttpPost("refresh")]
+        public async Task<ActionResult<AuthResponse>> Refresh([FromBody] string refreshToken)
+        {
+            var stored = await _db.RefreshTokens
+                .Include(r => r.User)
+                .FirstOrDefaultAsync(r => r.Token == refreshToken);
+
+            if (stored == null || stored.IsRevoked || stored.ExpiresAt < DateTime.UtcNow)
+                return Unauthorized("Invalid refresh token.");
+
+            // помечаем старый токен отозванным
+            stored.IsRevoked = true;
+            await _db.SaveChangesAsync();
+
+            // удаляем просроченные refresh токены
+            var expired = _db.RefreshTokens.Where(r => r.ExpiresAt < DateTime.UtcNow);
+            _db.RefreshTokens.RemoveRange(expired);
+            await _db.SaveChangesAsync();
+
+            // 🔹 убираем старые активные refresh токены
+            var oldTokens = _db.RefreshTokens.Where(r => r.UserId == stored.UserId && !r.IsRevoked);
+            foreach (var t in oldTokens)
+                t.IsRevoked = true;
+            await _db.SaveChangesAsync();
+
+            // создаём новый refresh токен
+            var newRefresh = new RefreshToken
+            {
+                Token = Guid.NewGuid().ToString("N"),
+                UserId = stored.UserId,
+                ExpiresAt = DateTime.UtcNow.AddDays(7),
+                IsRevoked = false
+            };
+            _db.RefreshTokens.Add(newRefresh);
+            await _db.SaveChangesAsync();
+
+            var roles = await _userManager.GetRolesAsync(stored.User!);
+            var newAccessToken = _jwt.CreateToken(stored.User!, roles);
+
+            return Ok(new AuthResponse
+            {
+                Token = newAccessToken,
+                RefreshToken = newRefresh.Token,
+                UserId = stored.User!.Id,
+                Email = stored.User!.Email ?? string.Empty,
+                DisplayName = stored.User!.DisplayName
+            });
+        }
+
+        /// <summary>Logout (revoke refresh token)</summary>
+        [HttpPost("logout")]
+        public async Task<IActionResult> Logout([FromBody] string refreshToken)
+        {
+            var stored = await _db.RefreshTokens
+                .FirstOrDefaultAsync(r => r.Token == refreshToken && !r.IsRevoked);
+
+            if (stored == null)
+                return NotFound("Refresh token not found or already revoked.");
+
+            stored.IsRevoked = true;
+            await _db.SaveChangesAsync();
+
+            return Ok(new { message = "Logged out successfully" });
+        }
+
     }
 }

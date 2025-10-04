@@ -13,7 +13,7 @@ namespace TaskManager.Api.Controllers
     /// </summary>
     [ApiController]
     [Route("api/[controller]")]
-    [Authorize] // позже ограничим ролью/политикой
+    [Authorize(Policy = Policies.User)] // позже ограничим ролью/политикой
     [Produces("application/json")]
     public class TasksController : ControllerBase
     {
@@ -53,10 +53,13 @@ namespace TaskManager.Api.Controllers
             if (string.IsNullOrEmpty(userId))
                 return Unauthorized();
 
+            var isAdmin = User.IsInRole("Admin");
+
             // 2) Базовый запрос: только задачи текущего пользователя
             var q = _db.Tasks
-                .AsNoTracking()
-                .Where(t => t.OwnerId == userId || t.IsPublic); // показываем публичные задачи
+                .AsNoTracking();
+            if (!isAdmin)
+                q = q.Where(t => t.OwnerId == userId || t.IsPublic); // показываем публичные задачи
 
             // --- ФИЛЬТРЫ ---
             if (query.IsCompleted.HasValue)
@@ -214,10 +217,12 @@ namespace TaskManager.Api.Controllers
             if (string.IsNullOrEmpty(currentUserId))
                 return Unauthorized();
 
+            var isAdmin = User.IsInRole("Admin");
+
             // один запрос: фильтруем и по Id, и по владельцу
             var item = await _db.Tasks
                 .AsNoTracking()
-                .Where(t => t.Id == id && (t.OwnerId == currentUserId || t.IsPublic))
+                .Where(t => t.Id == id && (isAdmin || t.OwnerId == currentUserId || t.IsPublic))
                 .Select(t => new TaskItemDto
                 {
                     Id = t.Id,
@@ -267,7 +272,11 @@ namespace TaskManager.Api.Controllers
 
             var currentUserId = GetCurrentUserId();
             if (string.IsNullOrEmpty(currentUserId)) return Unauthorized();
-            if (entity.OwnerId != currentUserId) return Forbid();
+
+            var isAdmin = User.IsInRole("Admin");
+
+            if (!isAdmin && entity.OwnerId != currentUserId) return Forbid();
+
 
             var newValue = request.IsCompleted!.Value;
 
@@ -322,7 +331,10 @@ namespace TaskManager.Api.Controllers
 
             var currentUserId = GetCurrentUserId();
             if (string.IsNullOrEmpty(currentUserId)) return Unauthorized();
-            if (entity.OwnerId != currentUserId) return Forbid();
+
+            var isAdmin = User.IsInRole("Admin");
+
+            if (!isAdmin && entity.OwnerId != currentUserId) return Forbid();
 
             // Доменная проверка: дедлайн не в прошлом
             if (request.DueDate.HasValue && request.DueDate.Value < DateTime.UtcNow.Date)
@@ -395,7 +407,10 @@ namespace TaskManager.Api.Controllers
 
             var currentUserId = GetCurrentUserId();
             if (string.IsNullOrEmpty(currentUserId)) return Unauthorized();
-            if (entity.OwnerId != currentUserId) return Forbid();
+
+            var isAdmin = User.IsInRole("Admin");
+
+            if (!isAdmin && entity.OwnerId != currentUserId) return Forbid();
 
             _db.Tasks.Remove(entity);
             await _db.SaveChangesAsync();

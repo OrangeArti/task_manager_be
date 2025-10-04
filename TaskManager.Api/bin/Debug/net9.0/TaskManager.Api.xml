@@ -10,6 +10,9 @@
         <member name="M:TaskManager.Api.Controllers.AuthController.Login(TaskManager.Api.Dtos.LoginRequest)">
             <summary>Login and return JWT</summary>
         </member>
+        <member name="M:TaskManager.Api.Controllers.AuthController.Refresh(System.String)">
+            <summary>Refresh JWT using a valid refresh token</summary>
+        </member>
         <member name="T:TaskManager.Api.Controllers.HealthController">
             <summary>
             Health-check эндпоинты сервиса.
@@ -88,6 +91,27 @@
             <response code="204">Задача успешно удалена.</response>
             <response code="404">Задача не найдена.</response>
         </member>
+        <member name="M:TaskManager.Api.Controllers.TasksController.MarkProblem(System.Int32,TaskManager.Api.Dtos.MarkProblemRequest)">
+            <summary>
+            Пометить задачу как проблемную (с описанием).
+            </summary>
+            <response code="200">Задача помечена как проблемная (возвращает обновлённый объект).</response>
+            <response code="204">Состояние уже было таким же (идемпотентно, без изменений).</response>
+            <response code="400">Некорректное тело запроса.</response>
+            <response code="401">Не авторизован.</response>
+            <response code="403">Нет прав на изменение (не владелец).</response>
+            <response code="404">Задача не найдена.</response>
+        </member>
+        <member name="M:TaskManager.Api.Controllers.TasksController.UnmarkProblem(System.Int32)">
+            <summary>
+            Снять пометку «проблемная» с задачи.
+            </summary>
+            <response code="200">Проблема снята (возвращает обновлённый объект).</response>
+            <response code="204">Задача уже была без проблемы.</response>
+            <response code="401">Не авторизован.</response>
+            <response code="403">Нет прав на изменение (не владелец).</response>
+            <response code="404">Задача не найдена.</response>
+        </member>
         <member name="M:TaskManager.Api.Controllers.UsersController.GetAll(System.Int32,System.Int32,System.String)">
             <summary>Пагинированный список пользователей с поиском по email/displayName</summary>
         </member>
@@ -117,6 +141,11 @@
         <member name="P:TaskManager.Api.Dtos.CreateTaskRequest.Priority">
             <summary>
             Приоритет: 0 = Low, 1 = Medium, 2 = High.
+            </summary>
+        </member>
+        <member name="P:TaskManager.Api.Dtos.CreateTaskRequest.IsPublic">
+            <summary>
+            Публичная задача или нет. По умолчанию false (задача приватная).
             </summary>
         </member>
         <member name="T:TaskManager.Api.Dtos.PagedResult`1">
@@ -252,6 +281,18 @@
             <inheritdoc />
         </member>
         <member name="M:TaskManager.Api.Migrations.TaskItem_ProblemFields.BuildTargetModel(Microsoft.EntityFrameworkCore.ModelBuilder)">
+            <inheritdoc />
+        </member>
+        <member name="T:TaskManager.Api.Migrations.AddRefreshTokens">
+            <inheritdoc />
+        </member>
+        <member name="M:TaskManager.Api.Migrations.AddRefreshTokens.Up(Microsoft.EntityFrameworkCore.Migrations.MigrationBuilder)">
+            <inheritdoc />
+        </member>
+        <member name="M:TaskManager.Api.Migrations.AddRefreshTokens.Down(Microsoft.EntityFrameworkCore.Migrations.MigrationBuilder)">
+            <inheritdoc />
+        </member>
+        <member name="M:TaskManager.Api.Migrations.AddRefreshTokens.BuildTargetModel(Microsoft.EntityFrameworkCore.ModelBuilder)">
             <inheritdoc />
         </member>
     </members>

@@ -9,6 +9,7 @@ using Microsoft.IdentityModel.Tokens;
 using System.Text;
 using TaskManager.Api.Models;
 using Microsoft.OpenApi.Models; // ⬅️ нужно для Swagger security
+using TaskManager.Api;
 
 var builder = WebApplication.CreateBuilder(args);
 
@@ -37,12 +38,11 @@ builder.Services.AddSwaggerGen(options =>
     // 🔐 JWT в Swagger (кнопка Authorize)
     options.AddSecurityDefinition("Bearer", new OpenApiSecurityScheme
     {
-        Description = "JWT в заголовке Authorization. Пример: Bearer {token}",
+        Description = "Введите JWT токен в формате: Bearer {your token}",
         Name = "Authorization",
         In = ParameterLocation.Header,
-        Type = SecuritySchemeType.Http,
-        Scheme = "bearer",
-        BearerFormat = "JWT"
+        Type = SecuritySchemeType.ApiKey,
+        Scheme = "Bearer"
     });
 
     options.AddSecurityRequirement(new OpenApiSecurityRequirement
@@ -54,7 +54,10 @@ builder.Services.AddSwaggerGen(options =>
                 {
                     Type = ReferenceType.SecurityScheme,
                     Id = "Bearer"
-                }
+                },
+                Scheme = "Bearer",
+                Name = "Authorization",
+                In = ParameterLocation.Header
             },
             Array.Empty<string>()
         }
@@ -101,7 +104,12 @@ builder.Services
     });
 
 // ⬅️ регистрируем Authorization (важно перед UseAuthorization)
-builder.Services.AddAuthorization();
+builder.Services.AddAuthorization(
+    options =>
+    {
+        Policies.RegisterPolicies(options);
+    }
+);
 
 builder.Services.AddScoped<TaskManager.Api.Services.IJwtTokenService, TaskManager.Api.Services.JwtTokenService>();
 
