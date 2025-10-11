@@ -10,6 +10,7 @@ using System.Text;
 using TaskManager.Api.Models;
 using Microsoft.OpenApi.Models; // ⬅️ нужно для Swagger security
 using TaskManager.Api;
+using TaskManager.Api.Services;
 
 var builder = WebApplication.CreateBuilder(args);
 
@@ -112,6 +113,7 @@ builder.Services.AddAuthorization(
 );
 
 builder.Services.AddScoped<TaskManager.Api.Services.IJwtTokenService, TaskManager.Api.Services.JwtTokenService>();
+builder.Services.AddScoped<ITeamService, TeamService>();
 
 // CORS
 var allowedOrigins = builder.Configuration.GetSection("AllowedCorsOrigins").Get<string[]>() ?? Array.Empty<string>();

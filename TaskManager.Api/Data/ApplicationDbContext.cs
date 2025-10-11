@@ -5,24 +5,26 @@ using TaskManager.Api.Models;
 namespace TaskManager.Api.Data
 {
     // ВАЖНО: наследуемся от IdentityDbContext<ApplicationUser>
-    public class ApplicationDbContext : IdentityDbContext<ApplicationUser>
-    {
-        public ApplicationDbContext(DbContextOptions<ApplicationDbContext> options)
-            : base(options) { }
+	public class ApplicationDbContext : IdentityDbContext<ApplicationUser>
+	{
+		public ApplicationDbContext(DbContextOptions<ApplicationDbContext> options)
+			: base(options) { }
 
-        public DbSet<TaskItem> Tasks => Set<TaskItem>();
+		public DbSet<TaskItem> Tasks => Set<TaskItem>();
 
-        public DbSet<RefreshToken> RefreshTokens { get; set; }
+		public DbSet<Team> Teams => Set<Team>();
 
-        protected override void OnModelCreating(ModelBuilder modelBuilder)
-        {
+		public DbSet<RefreshToken> RefreshTokens { get; set; }
+
+		protected override void OnModelCreating(ModelBuilder modelBuilder)
+		{
             base.OnModelCreating(modelBuilder); // не убирать, это регистрирует таблицы Identity
 
-            modelBuilder.Entity<TaskItem>(e =>
-            {
-                e.HasKey(t => t.Id);
-                e.Property(t => t.Title).HasMaxLength(200).IsRequired();
-                e.Property(t => t.Description).HasMaxLength(4000);
+			modelBuilder.Entity<TaskItem>(e =>
+			{
+				e.HasKey(t => t.Id);
+				e.Property(t => t.Title).HasMaxLength(200).IsRequired();
+				e.Property(t => t.Description).HasMaxLength(4000);
                 e.Property(t => t.Priority).HasDefaultValue(0);
                 e.Property(t => t.IsCompleted).HasDefaultValue(false);
                 e.Property(t => t.CreatedAt).HasDefaultValueSql("GETUTCDATE()");
@@ -32,11 +34,25 @@ namespace TaskManager.Api.Data
                     .WithMany()
                     .HasForeignKey(t => t.OwnerId)
                     .OnDelete(DeleteBehavior.SetNull);
-                e.Property(t => t.IsProblem).HasDefaultValue(false);
-                e.Property(t => t.ProblemDescription).HasMaxLength(2000);
-                e.Property(t => t.ProblemReporterId).HasMaxLength(450);
-                e.HasIndex(t => t.IsProblem);
-            });
-        }
-    }
+				e.Property(t => t.IsProblem).HasDefaultValue(false);
+				e.Property(t => t.ProblemDescription).HasMaxLength(2000);
+				e.Property(t => t.ProblemReporterId).HasMaxLength(450);
+				e.HasIndex(t => t.IsProblem);
+			});
+
+			modelBuilder.Entity<Team>(entity =>
+			{
+				entity.HasKey(t => t.Id);
+				entity.Property(t => t.Name)
+					.HasMaxLength(100)
+					.IsRequired();
+				entity.Property(t => t.CreatedAt)
+					.HasDefaultValueSql("GETUTCDATE()");
+				entity.HasMany(t => t.Members)
+					.WithOne(u => u.Team)
+					.HasForeignKey(u => u.TeamId)
+					.OnDelete(DeleteBehavior.SetNull);
+			});
+		}
+	}
 }

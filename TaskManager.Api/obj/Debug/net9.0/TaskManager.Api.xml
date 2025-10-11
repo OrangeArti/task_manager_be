@@ -11,7 +11,10 @@
             <summary>Login and return JWT</summary>
         </member>
         <member name="M:TaskManager.Api.Controllers.AuthController.Refresh(System.String)">
-            <summary>Refresh JWT using a valid refresh token</summary>
+            <summary>Refresh JWT using a valid refresh token (with rotation)</summary>
+        </member>
+        <member name="M:TaskManager.Api.Controllers.AuthController.Logout(System.String)">
+            <summary>Logout (revoke refresh token)</summary>
         </member>
         <member name="T:TaskManager.Api.Controllers.HealthController">
             <summary>
@@ -293,6 +296,18 @@
             <inheritdoc />
         </member>
         <member name="M:TaskManager.Api.Migrations.AddRefreshTokens.BuildTargetModel(Microsoft.EntityFrameworkCore.ModelBuilder)">
+            <inheritdoc />
+        </member>
+        <member name="T:TaskManager.Api.Migrations.AddTeams">
+            <inheritdoc />
+        </member>
+        <member name="M:TaskManager.Api.Migrations.AddTeams.Up(Microsoft.EntityFrameworkCore.Migrations.MigrationBuilder)">
+            <inheritdoc />
+        </member>
+        <member name="M:TaskManager.Api.Migrations.AddTeams.Down(Microsoft.EntityFrameworkCore.Migrations.MigrationBuilder)">
+            <inheritdoc />
+        </member>
+        <member name="M:TaskManager.Api.Migrations.AddTeams.BuildTargetModel(Microsoft.EntityFrameworkCore.ModelBuilder)">
             <inheritdoc />
         </member>
     </members>
