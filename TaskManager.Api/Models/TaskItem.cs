@@ -1,3 +1,6 @@
+using System;
+using System.Collections.Generic;
+
 namespace TaskManager.Api.Models
 {
     public class TaskItem
@@ -9,12 +12,50 @@ namespace TaskManager.Api.Models
         public bool IsCompleted { get; set; } = false;
         public int Priority { get; set; } = 0;
         public DateTime CreatedAt { get; set; } = DateTime.UtcNow;
-        public bool IsPublic { get; set; } = false;
-        public string? OwnerId { get; set; }
-        public ApplicationUser? Owner { get; set; }
+
+        public string VisibilityScope { get; set; } = TaskVisibilityScopes.Private;
+
+        public string CreatedById { get; set; } = default!;
+        public ApplicationUser? CreatedBy { get; set; }
+
+        public string? AssignedToId { get; set; }
+        public ApplicationUser? AssignedTo { get; set; }
+
+        public int? TeamId { get; set; }
+        public Team? Team { get; set; }
+
         public bool IsProblem { get; set; } = false;
         public string? ProblemDescription { get; set; }
         public string? ProblemReporterId { get; set; }
         public DateTime? ProblemReportedAt { get; set; }
+    }
+
+    public static class TaskVisibilityScopes
+    {
+        public const string Private = "Private";
+        public const string TeamPublic = "TeamPublic";
+        public const string GlobalPublic = "GlobalPublic";
+
+        public static readonly IReadOnlySet<string> All =
+            new HashSet<string>(StringComparer.OrdinalIgnoreCase)
+            {
+                Private,
+                TeamPublic,
+                GlobalPublic
+            };
+
+        public static string? Normalize(string? scope)
+        {
+            if (string.IsNullOrWhiteSpace(scope))
+                return null;
+
+            foreach (var value in All)
+            {
+                if (string.Equals(value, scope, StringComparison.OrdinalIgnoreCase))
+                    return value;
+            }
+
+            return null;
+        }
     }
 }

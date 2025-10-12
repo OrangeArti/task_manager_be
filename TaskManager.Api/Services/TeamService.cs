@@ -120,5 +120,66 @@ namespace TaskManager.Api.Services
 
             return true;
         }
+
+        public async Task<bool> AddMemberAsync(int teamId, string userId)
+        {
+            var team = await _dbContext.Teams
+                .Include(t => t.Members)
+                .FirstOrDefaultAsync(t => t.Id == teamId);
+
+            if (team is null)
+            {
+                return false;
+            }
+
+            var user = await _dbContext.Users.FirstOrDefaultAsync(u => u.Id == userId);
+
+            if (user is null)
+            {
+                return false;
+            }
+
+            if (user.TeamId.HasValue && user.TeamId != teamId)
+            {
+                throw new InvalidOperationException("User already belongs to another team.");
+            }
+
+            user.TeamId = teamId;
+            await _dbContext.SaveChangesAsync();
+            _logger.LogInformation("User {UserId} added to team {TeamId}", userId, teamId);
+
+            return true;
+        }
+
+        public async Task<bool> RemoveMemberAsync(int teamId, string userId)
+        {
+            var user = await _dbContext.Users.FirstOrDefaultAsync(u => u.Id == userId && u.TeamId == teamId);
+
+            if (user is null)
+            {
+                return false;
+            }
+
+            user.TeamId = null;
+            await _dbContext.SaveChangesAsync();
+            _logger.LogInformation("User {UserId} removed from team {TeamId}", userId, teamId);
+
+            return true;
+        }
+
+        public async Task<IReadOnlyList<UserDto>> GetMembersAsync(int teamId)
+        {
+            var members = await _dbContext.Users
+                .Where(u => u.TeamId == teamId)
+                .Select(u => new UserDto
+                {
+                    Id = u.Id,
+                    Email = u.Email ?? string.Empty,
+                    DisplayName = u.DisplayName ?? string.Empty
+                })
+                .ToListAsync();
+
+            return members;
+        }
     }
 }

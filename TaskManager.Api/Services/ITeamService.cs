@@ -14,5 +14,11 @@ namespace TaskManager.Api.Services
         Task<TeamDto?> UpdateAsync(int id, UpdateTeamDto dto);
 
         Task<bool> DeleteAsync(int id);
+
+        Task<bool> AddMemberAsync(int teamId, string userId);
+
+        Task<bool> RemoveMemberAsync(int teamId, string userId);
+
+        Task<IReadOnlyList<UserDto>> GetMembersAsync(int teamId);
     }
 }

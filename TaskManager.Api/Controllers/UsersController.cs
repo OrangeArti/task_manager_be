@@ -103,24 +103,49 @@ namespace TaskManager.Api.Controllers
                     return;
                 }
 
-                // 1) Забираем все задачи пользователя
-                var tasks = await _db.Tasks.Where(t => t.OwnerId == id).ToListAsync();
+                // 1) Забираем все задачи, созданные пользователем
+                var createdTasks = await _db.Tasks
+                    .Where(t => t.CreatedById == id)
+                    .ToListAsync();
 
-                // 2) Делим на личные и публичные
-                var personal = tasks.Where(t => !t.IsPublic).ToList();
-                var publicOnes = tasks.Where(t => t.IsPublic).ToList();
+                var personal = createdTasks
+                    .Where(t => t.VisibilityScope == TaskVisibilityScopes.Private)
+                    .ToList();
 
-                // 3) Личные — удаляем
+                var shared = createdTasks
+                    .Where(t => t.VisibilityScope != TaskVisibilityScopes.Private)
+                    .ToList();
+
                 if (personal.Count > 0)
-                    _db.Tasks.RemoveRange(personal);
-
-                // 4) Публичные — обезличиваем
-                if (publicOnes.Count > 0)
                 {
-                    foreach (var t in publicOnes)
-                        t.OwnerId = null;
+                    _db.Tasks.RemoveRange(personal);
+                }
 
-                    _db.Tasks.UpdateRange(publicOnes);
+                if (shared.Count > 0)
+                {
+                    foreach (var task in shared)
+                    {
+                        task.CreatedById = me ?? task.CreatedById;
+                        if (task.AssignedToId == id)
+                        {
+                            task.AssignedToId = null;
+                        }
+                    }
+
+                    _db.Tasks.UpdateRange(shared);
+                }
+
+                // 4) Сбрасываем назначение у задач, созданных другими, но назначенных на пользователя
+                var assignedToUser = await _db.Tasks
+                    .Where(t => t.CreatedById != id && t.AssignedToId == id)
+                    .ToListAsync();
+
+                if (assignedToUser.Count > 0)
+                {
+                    foreach (var task in assignedToUser)
+                        task.AssignedToId = null;
+
+                    _db.Tasks.UpdateRange(assignedToUser);
                 }
 
                 await _db.SaveChangesAsync();

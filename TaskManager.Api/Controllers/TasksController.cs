@@ -9,7 +9,7 @@ using System.Security.Claims;
 namespace TaskManager.Api.Controllers
 {
     /// <summary>
-    /// CRUD по задачам: список, создание, изменение статуса, получение по id.
+    /// CRUD for tasks with team-based visibility: Admins see all tasks; users see own, team, and public tasks.
     /// </summary>
     [ApiController]
     [Route("api/[controller]")]
@@ -33,6 +33,19 @@ namespace TaskManager.Api.Controllers
                 ?? User.FindFirstValue("sub");
         }
 
+        private async Task<int?> GetUserTeamIdAsync()
+        {
+            var userId = GetCurrentUserId();
+            if (string.IsNullOrEmpty(userId)) return null;
+
+            var teamId = await _db.Users.AsNoTracking()
+                .Where(u => u.Id == userId)
+                .Select(u => u.TeamId)
+                .FirstOrDefaultAsync();
+
+            return teamId;
+        }
+
         /// <summary>
         /// Возвращает список задач с пагинацией и сортировкой.
         /// </summary>
@@ -48,32 +61,39 @@ namespace TaskManager.Api.Controllers
             var (page, pageSize) = query.NormalizePaging();
             var (sortBy, desc) = query.NormalizeSorting();
             var search = query.NormalizeSearch();
+            var requestedScope = TaskVisibilityScopes.Normalize(query.NormalizeVisibilityScope());
 
             var userId = GetCurrentUserId();
             if (string.IsNullOrEmpty(userId))
                 return Unauthorized();
 
             var isAdmin = User.IsInRole("Admin");
+            var isSubscriptionOwner = User.IsInRole("SubscriptionOwner");
+            var userTeamId = await GetUserTeamIdAsync();
 
-            // 2) Базовый запрос: только задачи текущего пользователя
-            var q = _db.Tasks
-                .AsNoTracking();
+            var q = _db.Tasks.AsNoTracking();
+
             if (!isAdmin)
-                q = q.Where(t => t.OwnerId == userId || t.IsPublic); // показываем публичные задачи
+            {
+                q = q.Where(t =>
+                    t.CreatedById == userId ||
+                    t.AssignedToId == userId ||
+                    t.VisibilityScope == TaskVisibilityScopes.GlobalPublic ||
+                    (t.VisibilityScope == TaskVisibilityScopes.TeamPublic &&
+                     ((userTeamId.HasValue && t.TeamId == userTeamId.Value) || isSubscriptionOwner)));
+            }
 
-            // --- ФИЛЬТРЫ ---
             if (query.IsCompleted.HasValue)
                 q = q.Where(t => t.IsCompleted == query.IsCompleted.Value);
 
             if (query.Priority.HasValue)
                 q = q.Where(t => t.Priority == query.Priority.Value);
 
-            if (query.IsPublic.HasValue)
-                q = q.Where(t => t.IsPublic == query.IsPublic.Value);
+            if (!string.IsNullOrEmpty(requestedScope))
+                q = q.Where(t => t.VisibilityScope == requestedScope);
 
             if (search is not null)
             {
-                // простая case-insensitive contains (для MSSQL: переводим к одному регистру)
                 var s = search.ToLower();
                 q = q.Where(t =>
                     (t.Title != null && t.Title.ToLower().Contains(s)) ||
@@ -86,29 +106,20 @@ namespace TaskManager.Api.Controllers
             if (query.DueDateTo.HasValue)
                 q = q.Where(t => t.DueDate <= query.DueDateTo.Value);
 
-
-            // Сортировка (whitelist полей)
             q = (sortBy, desc) switch
             {
                 ("createdAt", false) => q.OrderBy(t => t.CreatedAt),
                 ("createdAt", true) => q.OrderByDescending(t => t.CreatedAt),
-
                 ("dueDate", false) => q.OrderBy(t => t.DueDate),
                 ("dueDate", true) => q.OrderByDescending(t => t.DueDate),
-
                 ("priority", false) => q.OrderBy(t => t.Priority),
                 ("priority", true) => q.OrderByDescending(t => t.Priority),
-
                 ("title", false) => q.OrderBy(t => t.Title),
                 ("title", true) => q.OrderByDescending(t => t.Title),
-
                 _ => q.OrderByDescending(t => t.CreatedAt)
             };
 
-            // Считаем total до Skip/Take (выполнится как COUNT(*) на стороне БД)
             var total = await q.CountAsync();
-
-            // Пагинация
             var skip = (page - 1) * pageSize;
 
             var items = await q
@@ -123,7 +134,10 @@ namespace TaskManager.Api.Controllers
                     IsCompleted = t.IsCompleted,
                     Priority = t.Priority,
                     CreatedAt = t.CreatedAt,
-                    IsPublic = t.IsPublic,
+                    VisibilityScope = t.VisibilityScope,
+                    CreatedById = t.CreatedById,
+                    AssignedToId = t.AssignedToId,
+                    TeamId = t.TeamId,
                     IsProblem = t.IsProblem,
                     ProblemDescription = t.ProblemDescription,
                     ProblemReporterId = t.ProblemReporterId,
@@ -163,15 +177,74 @@ namespace TaskManager.Api.Controllers
             if (string.IsNullOrEmpty(userId))
                 return Unauthorized();
 
+            var normalizedScope = TaskVisibilityScopes.Normalize(request.VisibilityScope);
+            if (request.VisibilityScope is not null && normalizedScope is null)
+            {
+                ModelState.AddModelError(nameof(request.VisibilityScope), "Unknown visibility scope.");
+                return ValidationProblem(ModelState);
+            }
+
+            var effectiveScope = normalizedScope ?? TaskVisibilityScopes.Private;
+
+            var canCreatePublic = User.IsInRole("Admin") ||
+                                  User.IsInRole("SubscriptionOwner") ||
+                                  User.IsInRole("TeamLead");
+
+            if ((effectiveScope == TaskVisibilityScopes.TeamPublic || effectiveScope == TaskVisibilityScopes.GlobalPublic) && !canCreatePublic)
+                return Forbid();
+
+            var userTeamId = await GetUserTeamIdAsync();
+
+            var assignedToId = string.IsNullOrWhiteSpace(request.AssignedToId)
+                ? null
+                : request.AssignedToId.Trim();
+
+            if (assignedToId is not null)
+            {
+                var assigneeExists = await _db.Users.AnyAsync(u => u.Id == assignedToId);
+                if (!assigneeExists)
+                {
+                    ModelState.AddModelError(nameof(request.AssignedToId), "Assigned user not found.");
+                    return ValidationProblem(ModelState);
+                }
+            }
+
+            int? teamId = request.TeamId;
+
+            if (effectiveScope == TaskVisibilityScopes.TeamPublic)
+            {
+                if (!teamId.HasValue)
+                    teamId = userTeamId;
+
+                if (!teamId.HasValue)
+                {
+                    ModelState.AddModelError(nameof(request.TeamId), "TeamPublic tasks require a team.");
+                    return ValidationProblem(ModelState);
+                }
+
+                var teamExists = await _db.Teams.AnyAsync(t => t.Id == teamId.Value);
+                if (!teamExists)
+                {
+                    ModelState.AddModelError(nameof(request.TeamId), $"Team '{teamId.Value}' not found.");
+                    return ValidationProblem(ModelState);
+                }
+            }
+            else
+            {
+                teamId = null;
+            }
+
             var entity = new TaskItem
             {
                 Title = request.Title.Trim(),
                 Description = string.IsNullOrWhiteSpace(request.Description) ? null : request.Description.Trim(),
                 DueDate = request.DueDate,
                 Priority = request.Priority,
-                // IsCompleted и CreatedAt проставятся по умолчанию конфигурацией/моделью
-                OwnerId = userId,
-                IsPublic = request.IsPublic ?? false
+                AssignedToId = assignedToId,
+                TeamId = teamId,
+                VisibilityScope = effectiveScope,
+                CreatedById = userId,
+                CreatedAt = DateTime.UtcNow
             };
 
             _db.Add(entity);
@@ -186,7 +259,10 @@ namespace TaskManager.Api.Controllers
                 IsCompleted = entity.IsCompleted,
                 Priority = entity.Priority,
                 CreatedAt = entity.CreatedAt,
-                IsPublic = entity.IsPublic,
+                VisibilityScope = entity.VisibilityScope,
+                CreatedById = entity.CreatedById,
+                AssignedToId = entity.AssignedToId,
+                TeamId = entity.TeamId,
                 IsProblem = entity.IsProblem,
                 ProblemDescription = entity.ProblemDescription,
                 ProblemReporterId = entity.ProblemReporterId,
@@ -218,11 +294,22 @@ namespace TaskManager.Api.Controllers
                 return Unauthorized();
 
             var isAdmin = User.IsInRole("Admin");
+            var isSubscriptionOwner = User.IsInRole("SubscriptionOwner");
+            var userTeamId = await GetUserTeamIdAsync();
 
-            // один запрос: фильтруем и по Id, и по владельцу
-            var item = await _db.Tasks
-                .AsNoTracking()
-                .Where(t => t.Id == id && (isAdmin || t.OwnerId == currentUserId || t.IsPublic))
+            var itemQuery = _db.Tasks.AsNoTracking().Where(t => t.Id == id);
+
+            if (!isAdmin)
+            {
+                itemQuery = itemQuery.Where(t =>
+                    t.CreatedById == currentUserId ||
+                    t.AssignedToId == currentUserId ||
+                    t.VisibilityScope == TaskVisibilityScopes.GlobalPublic ||
+                    (t.VisibilityScope == TaskVisibilityScopes.TeamPublic &&
+                     ((userTeamId.HasValue && t.TeamId == userTeamId.Value) || isSubscriptionOwner)));
+            }
+
+            var item = await itemQuery
                 .Select(t => new TaskItemDto
                 {
                     Id = t.Id,
@@ -232,7 +319,10 @@ namespace TaskManager.Api.Controllers
                     IsCompleted = t.IsCompleted,
                     Priority = t.Priority,
                     CreatedAt = t.CreatedAt,
-                    IsPublic = t.IsPublic,
+                    VisibilityScope = t.VisibilityScope,
+                    CreatedById = t.CreatedById,
+                    AssignedToId = t.AssignedToId,
+                    TeamId = t.TeamId,
                     IsProblem = t.IsProblem,
                     ProblemDescription = t.ProblemDescription,
                     ProblemReporterId = t.ProblemReporterId,
@@ -275,8 +365,7 @@ namespace TaskManager.Api.Controllers
 
             var isAdmin = User.IsInRole("Admin");
 
-            if (!isAdmin && entity.OwnerId != currentUserId) return Forbid();
-
+            if (!isAdmin && entity.CreatedById != currentUserId) return Forbid();
 
             var newValue = request.IsCompleted!.Value;
 
@@ -295,7 +384,10 @@ namespace TaskManager.Api.Controllers
                 IsCompleted = entity.IsCompleted,
                 Priority = entity.Priority,
                 CreatedAt = entity.CreatedAt,
-                IsPublic = entity.IsPublic,
+                VisibilityScope = entity.VisibilityScope,
+                CreatedById = entity.CreatedById,
+                AssignedToId = entity.AssignedToId,
+                TeamId = entity.TeamId,
                 IsProblem = entity.IsProblem,
                 ProblemDescription = entity.ProblemDescription,
                 ProblemReporterId = entity.ProblemReporterId,
@@ -334,7 +426,7 @@ namespace TaskManager.Api.Controllers
 
             var isAdmin = User.IsInRole("Admin");
 
-            if (!isAdmin && entity.OwnerId != currentUserId) return Forbid();
+            if (!isAdmin && entity.CreatedById != currentUserId) return Forbid();
 
             // Доменная проверка: дедлайн не в прошлом
             if (request.DueDate.HasValue && request.DueDate.Value < DateTime.UtcNow.Date)
@@ -349,13 +441,74 @@ namespace TaskManager.Api.Controllers
                 ? null
                 : request.Description.Trim();
 
+            var newAssignedToId = string.IsNullOrWhiteSpace(request.AssignedToId)
+                ? null
+                : request.AssignedToId.Trim();
+
+            if (newAssignedToId is not null)
+            {
+                var assigneeExists = await _db.Users.AnyAsync(u => u.Id == newAssignedToId);
+                if (!assigneeExists)
+                {
+                    ModelState.AddModelError(nameof(request.AssignedToId), "Assigned user not found.");
+                    return ValidationProblem(ModelState);
+                }
+            }
+
+            var scopeFromRequest = request.VisibilityScope is null
+                ? entity.VisibilityScope
+                : TaskVisibilityScopes.Normalize(request.VisibilityScope);
+
+            if (request.VisibilityScope is not null && scopeFromRequest is null)
+            {
+                ModelState.AddModelError(nameof(request.VisibilityScope), "Unknown visibility scope.");
+                return ValidationProblem(ModelState);
+            }
+
+            var targetScope = scopeFromRequest!;
+
+            var canUsePublicScope = User.IsInRole("Admin") ||
+                                    User.IsInRole("SubscriptionOwner") ||
+                                    User.IsInRole("TeamLead");
+
+            if (!canUsePublicScope &&
+                targetScope != entity.VisibilityScope &&
+                (targetScope == TaskVisibilityScopes.TeamPublic || targetScope == TaskVisibilityScopes.GlobalPublic))
+            {
+                return Forbid();
+            }
+
+            int? newTeamId;
+            if (targetScope == TaskVisibilityScopes.TeamPublic)
+            {
+                newTeamId = request.TeamId ?? entity.TeamId ?? await GetUserTeamIdAsync();
+                if (!newTeamId.HasValue)
+                {
+                    ModelState.AddModelError(nameof(request.TeamId), "TeamPublic tasks require a team.");
+                    return ValidationProblem(ModelState);
+                }
+
+                var teamExists = await _db.Teams.AnyAsync(t => t.Id == newTeamId.Value);
+                if (!teamExists)
+                {
+                    ModelState.AddModelError(nameof(request.TeamId), $"Team '{newTeamId.Value}' not found.");
+                    return ValidationProblem(ModelState);
+                }
+            }
+            else
+            {
+                newTeamId = null;
+            }
+
             // Грязевая проверка (ничего не меняем — возвращаем 204)
             var noChanges =
                 entity.Title == newTitle &&
                 entity.Description == newDescription &&
                 entity.DueDate == request.DueDate &&
                 entity.Priority == request.Priority &&
-                (request.IsPublic == null || entity.IsPublic == request.IsPublic.Value);
+                entity.VisibilityScope == targetScope &&
+                entity.AssignedToId == newAssignedToId &&
+                entity.TeamId == newTeamId;
 
             if (noChanges)
                 return NoContent();
@@ -365,8 +518,9 @@ namespace TaskManager.Api.Controllers
             entity.Description = newDescription;
             entity.DueDate = request.DueDate;
             entity.Priority = request.Priority;
-            if (request.IsPublic.HasValue)
-                entity.IsPublic = request.IsPublic.Value;
+            entity.AssignedToId = newAssignedToId;
+            entity.VisibilityScope = targetScope;
+            entity.TeamId = newTeamId;
 
             await _db.SaveChangesAsync();
 
@@ -379,7 +533,10 @@ namespace TaskManager.Api.Controllers
                 IsCompleted = entity.IsCompleted, // статус трогает отдельный PATCH /status
                 Priority = entity.Priority,
                 CreatedAt = entity.CreatedAt,
-                IsPublic = entity.IsPublic,
+                VisibilityScope = entity.VisibilityScope,
+                CreatedById = entity.CreatedById,
+                AssignedToId = entity.AssignedToId,
+                TeamId = entity.TeamId,
                 IsProblem = entity.IsProblem,
                 ProblemDescription = entity.ProblemDescription,
                 ProblemReporterId = entity.ProblemReporterId,
@@ -410,7 +567,7 @@ namespace TaskManager.Api.Controllers
 
             var isAdmin = User.IsInRole("Admin");
 
-            if (!isAdmin && entity.OwnerId != currentUserId) return Forbid();
+            if (!isAdmin && entity.CreatedById != currentUserId) return Forbid();
 
             _db.Tasks.Remove(entity);
             await _db.SaveChangesAsync();
@@ -447,7 +604,7 @@ namespace TaskManager.Api.Controllers
             if (entity is null)
                 return NotFound(new { message = $"Task #{id} not found" });
 
-            if (entity.OwnerId != currentUserId)
+            if (entity.CreatedById != currentUserId)
                 return Forbid();
 
             var newDescription = request.Description.Trim();
@@ -472,7 +629,10 @@ namespace TaskManager.Api.Controllers
                 IsCompleted = entity.IsCompleted,
                 Priority = entity.Priority,
                 CreatedAt = entity.CreatedAt,
-                IsPublic = entity.IsPublic,
+                VisibilityScope = entity.VisibilityScope,
+                CreatedById = entity.CreatedById,
+                AssignedToId = entity.AssignedToId,
+                TeamId = entity.TeamId,
 
                 IsProblem = entity.IsProblem,
                 ProblemDescription = entity.ProblemDescription,
@@ -507,7 +667,7 @@ namespace TaskManager.Api.Controllers
             if (entity is null)
                 return NotFound(new { message = $"Task #{id} not found" });
 
-            if (entity.OwnerId != currentUserId)
+            if (entity.CreatedById != currentUserId)
                 return Forbid();
 
             if (!entity.IsProblem)
@@ -529,7 +689,10 @@ namespace TaskManager.Api.Controllers
                 IsCompleted = entity.IsCompleted,
                 Priority = entity.Priority,
                 CreatedAt = entity.CreatedAt,
-                IsPublic = entity.IsPublic,
+                VisibilityScope = entity.VisibilityScope,
+                CreatedById = entity.CreatedById,
+                AssignedToId = entity.AssignedToId,
+                TeamId = entity.TeamId,
 
                 IsProblem = entity.IsProblem,
                 ProblemDescription = entity.ProblemDescription,

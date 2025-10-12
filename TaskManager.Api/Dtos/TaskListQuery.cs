@@ -38,7 +38,8 @@ namespace TaskManager.Api.Dtos
         /// <summary>Дедлайн не позже этой даты (UTC). null — без верхней границы.</summary>
         public DateTime? DueDateTo { get; init; }
 
-        public bool? IsPublic { get; set; }
+        [StringLength(32)]
+        public string? VisibilityScope { get; set; }
 
         // нормализуем значения, чтобы избежать if в контроллере
         public (int page, int pageSize) NormalizePaging()
@@ -70,6 +71,15 @@ namespace TaskManager.Api.Dtos
         {
             var s = Search?.Trim();
             return string.IsNullOrEmpty(s) ? null : s;
+        }
+
+        public string? NormalizeVisibilityScope()
+        {
+            var value = VisibilityScope?.Trim();
+            if (string.IsNullOrEmpty(value))
+                return null;
+
+            return value;
         }
     }
 }

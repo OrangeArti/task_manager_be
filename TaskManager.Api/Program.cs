@@ -11,6 +11,8 @@ using TaskManager.Api.Models;
 using Microsoft.OpenApi.Models; // ⬅️ нужно для Swagger security
 using TaskManager.Api;
 using TaskManager.Api.Services;
+using Microsoft.AspNetCore.Authorization;
+using TaskManager.Api.Authorization.Handlers;
 
 var builder = WebApplication.CreateBuilder(args);
 
@@ -83,6 +85,8 @@ builder.Services
 var jwtKey = builder.Configuration["Jwt:Key"] ?? "SuperSecretKey123!"; // для контейнера прокинь через env
 var jwtIssuer = builder.Configuration["Jwt:Issuer"] ?? "TaskManagerApi";
 
+builder.Services.AddHttpContextAccessor();
+
 builder.Services
     .AddAuthentication(options =>
     {
@@ -111,6 +115,9 @@ builder.Services.AddAuthorization(
         Policies.RegisterPolicies(options);
     }
 );
+
+builder.Services.AddScoped<IAuthorizationHandler, TaskReadHandler>();
+builder.Services.AddScoped<IAuthorizationHandler, TaskWriteHandler>();
 
 builder.Services.AddScoped<TaskManager.Api.Services.IJwtTokenService, TaskManager.Api.Services.JwtTokenService>();
 builder.Services.AddScoped<ITeamService, TeamService>();

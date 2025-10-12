@@ -28,11 +28,26 @@ namespace TaskManager.Api.Data
                 e.Property(t => t.Priority).HasDefaultValue(0);
                 e.Property(t => t.IsCompleted).HasDefaultValue(false);
                 e.Property(t => t.CreatedAt).HasDefaultValueSql("GETUTCDATE()");
-                e.Property(t => t.IsPublic).HasDefaultValue(false);
-                e.HasIndex(t => t.OwnerId);
-                e.HasOne(t => t.Owner)
+                e.Property(t => t.VisibilityScope)
+                    .HasMaxLength(32)
+                    .HasDefaultValue(TaskVisibilityScopes.Private);
+                e.Property(t => t.CreatedById)
+                    .HasMaxLength(450)
+                    .IsRequired();
+                e.HasIndex(t => t.CreatedById);
+                e.HasOne(t => t.CreatedBy)
                     .WithMany()
-                    .HasForeignKey(t => t.OwnerId)
+                    .HasForeignKey(t => t.CreatedById)
+                    .OnDelete(DeleteBehavior.Restrict);
+                e.HasIndex(t => t.AssignedToId);
+                e.HasOne(t => t.AssignedTo)
+                    .WithMany()
+                    .HasForeignKey(t => t.AssignedToId)
+                    .OnDelete(DeleteBehavior.SetNull);
+                e.HasIndex(t => t.TeamId);
+                e.HasOne(t => t.Team)
+                    .WithMany()
+                    .HasForeignKey(t => t.TeamId)
                     .OnDelete(DeleteBehavior.SetNull);
 				e.Property(t => t.IsProblem).HasDefaultValue(false);
 				e.Property(t => t.ProblemDescription).HasMaxLength(2000);

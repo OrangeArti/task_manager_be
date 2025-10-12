@@ -1,4 +1,5 @@
 using System.ComponentModel.DataAnnotations;
+using TaskManager.Api.Models;
 
 namespace TaskManager.Api.Dtos
 {
@@ -30,9 +31,14 @@ namespace TaskManager.Api.Dtos
         [Range(0, 2)]
         public int Priority { get; set; } = 0;
 
-        /// <summary>
-        /// Публичная задача или нет. По умолчанию false (задача приватная).
-        /// </summary>
-        public bool? IsPublic { get; set; }
+        /// <summary>Кому назначена задача.</summary>
+        public string? AssignedToId { get; set; }
+
+        /// <summary>Команда задачи (для TeamPublic задач, опционально для Private).</summary>
+        public int? TeamId { get; set; }
+
+        /// <summary>Область видимости: Private | TeamPublic | GlobalPublic.</summary>
+        [StringLength(32)]
+        public string? VisibilityScope { get; set; } = TaskVisibilityScopes.Private;
     }
 }

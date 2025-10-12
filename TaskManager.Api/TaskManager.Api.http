@@ -4,3 +4,33 @@ GET {{TaskManager.Api_HostAddress}}/weatherforecast/
 Accept: application/json
 
 ###
+
+### Add member to team
+POST {{baseUrl}}/api/teams/1/members
+Authorization: Bearer {{token}}
+Content-Type: application/json
+
+{
+  "userId": "PUT_USER_ID_HERE"
+}
+
+### Remove member from team
+DELETE {{baseUrl}}/api/teams/1/members
+Authorization: Bearer {{token}}
+Content-Type: application/json
+
+{
+  "userId": "PUT_USER_ID_HERE"
+}
+
+### Get team members
+GET {{baseUrl}}/api/teams/1/members
+Authorization: Bearer {{token}}
+
+###
+
+### Get tasks visible to current user (Team-filtered)
+GET {{baseUrl}}/api/tasks
+Authorization: Bearer {{token}}
+
+###

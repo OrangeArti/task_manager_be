@@ -23,6 +23,12 @@ namespace TaskManager.Api.Data
                 await roleManager.CreateAsync(new IdentityRole(userRole));
             }
 
+            const string teamLeadRole = "TeamLead";
+            if (!await roleManager.RoleExistsAsync(teamLeadRole))
+            {
+                await roleManager.CreateAsync(new IdentityRole(teamLeadRole));
+            }
+
             var adminEmail = cfg["Admin:Email"];
             var adminPassword = cfg["Admin:Password"];
             var adminDisplay = cfg["Admin:DisplayName"] ?? "System Admin";
