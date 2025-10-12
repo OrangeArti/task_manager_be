@@ -17,11 +17,11 @@ services:
       timeout: 5s
       retries: 10
 
-  api:
+  tasks-service:
     build:
       context: .
       dockerfile: TaskManager.Api/Dockerfile
-    container_name: taskmanager_api
+    container_name: taskmanager_tasks
     depends_on:
       mssql:
         condition: service_healthy
@@ -41,6 +41,62 @@ services:
       Admin__Email: "${Admin__Email}"
       Admin__Password: "${Admin__Password}"
       Admin__DisplayName: "${Admin__DisplayName}"
+    ports:
+      - "8081:8080"
+    restart: unless-stopped
+
+  teams-service:
+    build:
+      context: .
+      dockerfile: TaskManager.ServiceStub/Dockerfile
+    container_name: taskmanager_teams
+    environment:
+      ASPNETCORE_ENVIRONMENT: "Development"
+      ASPNETCORE_URLS: "http://+:8080"
+      SERVICE_NAME: "teams-service"
+      SERVICE_KIND: "teams"
+      Jwt__Key: "${JWT_KEY}"
+      Jwt__Issuer: "${JWT_ISSUER}"
+    ports:
+      - "8082:8080"
+    restart: unless-stopped
+
+  users-service:
+    build:
+      context: .
+      dockerfile: TaskManager.ServiceStub/Dockerfile
+    container_name: taskmanager_users
+    environment:
+      ASPNETCORE_ENVIRONMENT: "Development"
+      ASPNETCORE_URLS: "http://+:8080"
+      SERVICE_NAME: "users-service"
+      SERVICE_KIND: "users"
+      Jwt__Key: "${JWT_KEY}"
+      Jwt__Issuer: "${JWT_ISSUER}"
+    ports:
+      - "8083:8080"
+    restart: unless-stopped
+
+  api-gateway:
+    build:
+      context: .
+      dockerfile: TaskManager.ApiGateway/Dockerfile
+    container_name: taskmanager_gateway
+    depends_on:
+      tasks-service:
+        condition: service_started
+      teams-service:
+        condition: service_started
+      users-service:
+        condition: service_started
+    environment:
+      ASPNETCORE_ENVIRONMENT: "Development"
+      ASPNETCORE_URLS: "http://+:8080"
+      Gateway__Auth__Username: "${Gateway__Auth__Username:-frontend}"
+      Gateway__Auth__Password: "${Gateway__Auth__Password:-frontend-secret}"
+      Gateway__Services__tasks__BaseUrl: "http://tasks-service:8080"
+      Gateway__Services__teams__BaseUrl: "http://teams-service:8080"
+      Gateway__Services__users__BaseUrl: "http://users-service:8080"
     ports:
       - "8080:8080"
     restart: unless-stopped

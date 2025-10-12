@@ -4,10 +4,12 @@ WORKDIR /src
 
 # копируем csproj и восстанавливаем зависимости (кэш)
 COPY TaskManager.Api/*.csproj ./TaskManager.Api/
+COPY TaskManager.Shared/*.csproj ./TaskManager.Shared/
 RUN dotnet restore TaskManager.Api/TaskManager.Api.csproj
 
 # копируем остальной исходный код
 COPY TaskManager.Api/ ./TaskManager.Api/
+COPY TaskManager.Shared/ ./TaskManager.Shared/
 
 # публикуем в self-contained зависимости (необязательно)
 RUN dotnet publish TaskManager.Api/TaskManager.Api.csproj -c Release -o /app
