@@ -92,8 +92,6 @@ services:
     environment:
       ASPNETCORE_ENVIRONMENT: "Development"
       ASPNETCORE_URLS: "http://+:8080"
-      Gateway__Auth__Username: "${Gateway__Auth__Username:-frontend}"
-      Gateway__Auth__Password: "${Gateway__Auth__Password:-frontend-secret}"
       Gateway__Services__tasks__BaseUrl: "http://tasks-service:8080"
       Gateway__Services__teams__BaseUrl: "http://teams-service:8080"
       Gateway__Services__users__BaseUrl: "http://users-service:8080"

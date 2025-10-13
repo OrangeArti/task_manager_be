@@ -4,23 +4,22 @@ using System.IdentityModel.Tokens.Jwt;
 using System.Linq;
 using System.Security.Claims;
 using System.Text;
-using Microsoft.Extensions.Configuration;
+using Microsoft.Extensions.Options;
 using Microsoft.IdentityModel.Tokens;
 using TaskManager.Api.Models;
+using TaskManager.Shared.Security;
 
 namespace TaskManager.Api.Services
 {
     public sealed class JwtTokenService : IJwtTokenService
     {
-        private readonly string _key;
-        private readonly string _issuer;
+        private readonly JwtOptions _options;
 
-        public JwtTokenService(IConfiguration cfg)
+        public JwtTokenService(IOptions<JwtOptions> options)
         {
-            _key = cfg["Jwt:Key"] ?? throw new InvalidOperationException("Jwt:Key is not configured");
-            _issuer = cfg["Jwt:Issuer"] ?? "TaskManagerApi";
+            _options = options.Value ?? throw new InvalidOperationException("Jwt options are not configured.");
             // Требование HS256: ключ минимум 256 бит (32 байта)
-            if (Encoding.UTF8.GetByteCount(_key) < 32)
+            if (Encoding.UTF8.GetByteCount(_options.Key) < 32)
                 throw new InvalidOperationException("Jwt:Key length must be at least 32 bytes for HS256.");
         }
 
@@ -40,12 +39,12 @@ namespace TaskManager.Api.Services
                     claims.Add(new Claim(ClaimTypes.Role, role));
             }
 
-            var key = new SymmetricSecurityKey(Encoding.UTF8.GetBytes(_key));
+            var key = new SymmetricSecurityKey(Encoding.UTF8.GetBytes(_options.Key));
             var creds = new SigningCredentials(key, SecurityAlgorithms.HmacSha256);
 
             var token = new JwtSecurityToken(
-                issuer: _issuer,
-                audience: _issuer,
+                issuer: _options.Issuer,
+                audience: _options.Audience,
                 claims: claims,
                 notBefore: DateTime.UtcNow,
                 expires: DateTime.UtcNow.AddHours(12),

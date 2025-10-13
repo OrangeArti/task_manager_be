@@ -8,6 +8,7 @@ using Microsoft.OpenApi.Models;
 using TaskManager.Shared.Dtos.Teams;
 using TaskManager.Shared.Dtos.Users;
 using TaskManager.Shared.Health;
+using TaskManager.Shared.Security;
 
 var builder = WebApplication.CreateBuilder(args);
 
@@ -50,9 +51,8 @@ builder.Services.AddSwaggerGen(options =>
     });
 });
 
-var jwtIssuer = builder.Configuration["Jwt:Issuer"] ?? "TaskManagerApi";
-var jwtAudience = builder.Configuration["Jwt:Audience"] ?? jwtIssuer;
-var jwtKey = builder.Configuration["Jwt:Key"] ?? "SuperSecretKey123!";
+builder.Services.Configure<JwtOptions>(builder.Configuration.GetSection(JwtOptions.SectionName));
+var jwtOptions = builder.Configuration.GetJwtOptions();
 
 builder.Services
     .AddAuthentication(JwtBearerDefaults.AuthenticationScheme)
@@ -64,9 +64,9 @@ builder.Services
             ValidateAudience = true,
             ValidateLifetime = true,
             ValidateIssuerSigningKey = true,
-            ValidIssuer = jwtIssuer,
-            ValidAudience = jwtAudience,
-            IssuerSigningKey = new SymmetricSecurityKey(Encoding.UTF8.GetBytes(jwtKey)),
+            ValidIssuer = jwtOptions.Issuer,
+            ValidAudience = jwtOptions.Audience,
+            IssuerSigningKey = new SymmetricSecurityKey(Encoding.UTF8.GetBytes(jwtOptions.Key)),
             ClockSkew = TimeSpan.Zero
         };
     });

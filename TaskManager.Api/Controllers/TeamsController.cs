@@ -33,7 +33,7 @@ namespace TaskManager.Api.Controllers
         }
 
         /// <summary>Возвращает команду по её идентификатору.</summary>
-        [HttpGet("{id:int}", Name = nameof(GetByIdAsync))]
+        [HttpGet("by-id/{id:int}", Name = nameof(GetByIdAsync))]
         [ProducesResponseType(StatusCodes.Status200OK)]
         [ProducesResponseType(StatusCodes.Status404NotFound)]
         public async Task<ActionResult<TeamDto>> GetByIdAsync(int id)
