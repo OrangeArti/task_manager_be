@@ -23,6 +23,9 @@ namespace TaskManager.Api.Dtos
         /// <summary>Кому назначена задача.</summary>
         public string? AssignedToId { get; set; }
 
+        /// <summary>Определяет, виден ли исполнитель остальным пользователям.</summary>
+        public bool? IsAssigneeVisibleToOthers { get; set; }
+
         /// <summary>Команда задачи.</summary>
         public int? TeamId { get; set; }
 

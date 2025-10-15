@@ -17,6 +17,7 @@ namespace TaskManager.Api.Dtos
         public string VisibilityScope { get; init; } = TaskVisibilityScopes.Private;
         public string CreatedById { get; init; } = string.Empty;
         public string? AssignedToId { get; init; }
+        public bool IsAssigneeVisibleToOthers { get; init; } = true;
         public int? TeamId { get; init; }
         public bool IsProblem { get; set; }
         public string? ProblemDescription { get; set; }

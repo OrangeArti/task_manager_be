@@ -28,6 +28,7 @@ namespace TaskManager.Api.Data
                 e.Property(t => t.Priority).HasDefaultValue(0);
                 e.Property(t => t.IsCompleted).HasDefaultValue(false);
                 e.Property(t => t.CreatedAt).HasDefaultValueSql("GETUTCDATE()");
+                e.Property(t => t.IsAssigneeVisibleToOthers).HasDefaultValue(true);
                 e.Property(t => t.VisibilityScope)
                     .HasMaxLength(32)
                     .HasDefaultValue(TaskVisibilityScopes.Private);

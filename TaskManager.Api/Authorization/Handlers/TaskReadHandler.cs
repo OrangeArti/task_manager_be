@@ -61,6 +61,7 @@ namespace TaskManager.Api.Authorization.Handlers
                 {
                     t.CreatedById,
                     t.AssignedToId,
+                    t.IsAssigneeVisibleToOthers,
                     t.VisibilityScope,
                     t.TeamId
                 })
@@ -80,9 +81,18 @@ namespace TaskManager.Api.Authorization.Handlers
 
             if (task.CreatedById == currentUserId ||
                 task.AssignedToId == currentUserId ||
-                task.VisibilityScope == TaskVisibilityScopes.GlobalPublic ||
-                (task.VisibilityScope == TaskVisibilityScopes.TeamPublic &&
-                 ((currentTeamId.HasValue && task.TeamId.HasValue && task.TeamId == currentTeamId) || isSubscriptionOwner)))
+                (
+                    task.VisibilityScope == TaskVisibilityScopes.TeamPublic &&
+                    (task.AssignedToId == null || task.IsAssigneeVisibleToOthers) &&
+                    (
+                        (currentTeamId.HasValue && task.TeamId.HasValue && task.TeamId == currentTeamId) ||
+                        isSubscriptionOwner
+                    )
+                ) ||
+                (
+                    task.VisibilityScope == TaskVisibilityScopes.GlobalPublic &&
+                    (task.AssignedToId == null || task.IsAssigneeVisibleToOthers)
+                ))
             {
                 context.Succeed(requirement);
             }

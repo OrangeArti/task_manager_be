@@ -1,3 +1,4 @@
+using System.Collections.Generic;
 using System.Data.Common;
 using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Identity;
@@ -26,7 +27,7 @@ namespace TaskManager.Api.Controllers
         /// <summary>Пагинированный список пользователей с поиском по email/displayName</summary>
         [HttpGet]
         [ProducesResponseType(StatusCodes.Status200OK)]
-        public async Task<ActionResult<PagedResult<UserSummaryDto>>> GetAll(
+        public async Task<ActionResult<PagedResult<UserDto>>> GetAll(
             [FromQuery] int page = 1,
             [FromQuery] int pageSize = 20,
             [FromQuery] string? search = null)
@@ -47,20 +48,29 @@ namespace TaskManager.Api.Controllers
 
             var total = await query.CountAsync();
 
-            var items = await query
+            var users = await query
                 .OrderBy(u => u.Email)
                 .Skip((page - 1) * pageSize)
                 .Take(pageSize)
-                .Select(u => new UserSummaryDto
-                {
-                    Id = u.Id,
-                    Email = u.Email ?? "",
-                    DisplayName = u.DisplayName,
-                    EmailConfirmed = u.EmailConfirmed
-                })
                 .ToListAsync();
 
-            var result = new PagedResult<UserSummaryDto>
+            var items = new List<UserDto>(users.Count);
+
+            foreach (var user in users)
+            {
+                var roles = await _userManager.GetRolesAsync(user);
+
+                items.Add(new UserDto
+                {
+                    Id = user.Id,
+                    Email = user.Email ?? string.Empty,
+                    DisplayName = user.DisplayName ?? string.Empty,
+                    EmailConfirmed = user.EmailConfirmed,
+                    Roles = roles.ToList()
+                });
+            }
+
+            var result = new PagedResult<UserDto>
             {
                 Total = total,
                 Page = page,

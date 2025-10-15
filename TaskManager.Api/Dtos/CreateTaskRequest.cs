@@ -34,6 +34,9 @@ namespace TaskManager.Api.Dtos
         /// <summary>Кому назначена задача.</summary>
         public string? AssignedToId { get; set; }
 
+        /// <summary>Определяет, виден ли исполнитель всем (true) или только автору и исполнителю (false).</summary>
+        public bool? IsAssigneeVisibleToOthers { get; set; }
+
         /// <summary>Команда задачи (для TeamPublic задач, опционально для Private).</summary>
         public int? TeamId { get; set; }
 

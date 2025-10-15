@@ -12,6 +12,7 @@ namespace TaskManager.Api.Models
         public bool IsCompleted { get; set; } = false;
         public int Priority { get; set; } = 0;
         public DateTime CreatedAt { get; set; } = DateTime.UtcNow;
+        public bool IsAssigneeVisibleToOthers { get; set; } = true;
 
         public string VisibilityScope { get; set; } = TaskVisibilityScopes.Private;
 

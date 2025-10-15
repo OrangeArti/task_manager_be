@@ -19,6 +19,8 @@ public class TaskUpsertDto
     [StringLength(450)]
     public string? AssignedToId { get; set; }
 
+    public bool IsAssigneeVisibleToOthers { get; set; } = true;
+
     public int? TeamId { get; set; }
 
     [StringLength(50)]
