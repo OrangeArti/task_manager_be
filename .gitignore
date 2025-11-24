@@ -31,3 +31,5 @@ Thumbs.db
 
 # Resharper
 _ReSharper.Caches/
+
+TaskManager.Tests/

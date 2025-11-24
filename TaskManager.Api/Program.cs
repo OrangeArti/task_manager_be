@@ -70,12 +70,15 @@ builder.Services.AddSwaggerGen(options =>
 });
 
 // DbContext + ретраи
-builder.Services.AddDbContext<ApplicationDbContext>(options =>
-    options.UseSqlServer(
-        builder.Configuration.GetConnectionString("DefaultConnection"),
-        sql => sql.EnableRetryOnFailure()
-    )
-);
+if (!builder.Environment.IsEnvironment("Testing"))
+{
+    builder.Services.AddDbContext<ApplicationDbContext>(options =>
+        options.UseSqlServer(
+            builder.Configuration.GetConnectionString("DefaultConnection"),
+            sql => sql.EnableRetryOnFailure()
+        )
+    );
+}
 
 // Identity + EF stores
 builder.Services
@@ -148,10 +151,16 @@ var app = builder.Build();
 using (var scope = app.Services.CreateScope())
 {
     var db = scope.ServiceProvider.GetRequiredService<ApplicationDbContext>();
-    await db.Database.MigrateAsync();
+    if (!builder.Environment.IsEnvironment("Testing"))
+    {
+        await db.Database.MigrateAsync();
+    }
 
-// 🔹 Сид ролей и админа
-    await IdentitySeeder.SeedAsync(app.Services, app.Configuration);
+    // 🔹 Сид ролей и админа
+    if (!builder.Environment.IsEnvironment("Testing"))
+    {
+         await IdentitySeeder.SeedAsync(app.Services, app.Configuration);
+    }
 }
 
 // Pipeline
@@ -178,3 +187,4 @@ app.UseAuthorization();
 app.MapControllers();
 
 app.Run();
+public partial class Program { }
