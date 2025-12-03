@@ -3,13 +3,13 @@ using System.ComponentModel.DataAnnotations;
 namespace TaskManager.Api.Dtos
 {
     /// <summary>
-    /// Обновление только статуса задачи.
+    /// Update only the task status.
     /// </summary>
     public sealed class UpdateTaskStatusRequest
     {
         /// <summary>
-        /// Новый статус задачи: true = завершена, false = активна.
-        /// Обязательное поле.
+        /// New task status: true = completed, false = active.
+        /// Required field.
         /// </summary>
         [Required]
         public bool? IsCompleted { get; set; }

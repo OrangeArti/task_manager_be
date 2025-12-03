@@ -9,7 +9,7 @@
 
   <PropertyGroup>
     <GenerateDocumentationFile>true</GenerateDocumentationFile>
-    <!-- подавим предупреждения о недостающих комментариях, чтобы не засоряли сборку -->
+    <!-- suppress missing XML comment warnings to keep builds clean -->
     <NoWarn>$(NoWarn);1591</NoWarn>
   </PropertyGroup>
 

@@ -1,7 +1,7 @@
 namespace TaskManager.Api.Dtos
 {
     /// <summary>
-    /// Универсальная обёртка для постраничной выдачи.
+    /// Generic wrapper for paginated responses.
     /// </summary>
     public sealed class PagedResult<T>
     {

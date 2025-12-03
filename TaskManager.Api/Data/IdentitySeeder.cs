@@ -34,7 +34,7 @@ namespace TaskManager.Api.Data
             var adminDisplay = cfg["Admin:DisplayName"] ?? "System Admin";
 
             if (string.IsNullOrWhiteSpace(adminEmail) || string.IsNullOrWhiteSpace(adminPassword))
-                return; // секреты не заданы — пропускаем сид
+                return; // secrets are not provided — skip seeding
 
             var admin = await userManager.FindByEmailAsync(adminEmail);
             if (admin == null)
@@ -57,8 +57,8 @@ namespace TaskManager.Api.Data
                 var add = await userManager.AddToRoleAsync(admin, adminRole);
                 if (!add.Succeeded)
                 {
-                    // логируем или выбрасываем исключение — чтобы видеть если что-то пошло не так
-                    throw new Exception("Не удалось добавить пользователя в роль Admin: " +
+                    // log or throw to see if something went wrong
+                    throw new Exception("Failed to add user to the Admin role: " +
                                         string.Join(", ", add.Errors.Select(e => e.Description)));
                 }
             }

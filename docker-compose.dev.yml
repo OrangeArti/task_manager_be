@@ -30,14 +30,14 @@ services:
       ASPNETCORE_URLS: "http://+:8080"
       DisableHttps: "true"
 
-      # строка подключения внутри сети compose
+      # connection string inside the compose network
       ConnectionStrings__DefaultConnection: "Server=mssql,1433;Database=TaskManagerDb;User Id=sa;Password=${MSSQL_SA_PASSWORD};Encrypt=False;TrustServerCertificate=True"
 
-      # 🔐 JWT для контейнера (двойные подчёркивания = двоеточие в IConfiguration)
+      # JWT for the container (double underscores = colon in IConfiguration)
       Jwt__Key: "${JWT_KEY}"
       Jwt__Issuer: "${JWT_ISSUER}"
 
-      # 🔐 Данные администратора по умолчанию для контейнера
+      # Default admin credentials for the container
       Admin__Email: "${Admin__Email}"
       Admin__Password: "${Admin__Password}"
       Admin__DisplayName: "${Admin__DisplayName}"

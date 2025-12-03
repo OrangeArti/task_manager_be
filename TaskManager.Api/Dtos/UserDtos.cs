@@ -9,6 +9,7 @@ namespace TaskManager.Api.Dtos
         public string DisplayName { get; set; } = string.Empty;
         public bool EmailConfirmed { get; set; }
         public List<string> Roles { get; set; } = new();
+        public string? SubscriptionId { get; set; }
     }
 
     public class UserSummaryDto

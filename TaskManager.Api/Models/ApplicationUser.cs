@@ -2,7 +2,7 @@ using Microsoft.AspNetCore.Identity;
 
 namespace TaskManager.Api.Models
 {
-    // Расширяем IdentityUser, чтобы позже добавить Profile info
+    // Extend IdentityUser to later attach profile info
     public class ApplicationUser : IdentityUser
     {
         public string? DisplayName { get; set; }
@@ -10,5 +10,7 @@ namespace TaskManager.Api.Models
 
         public int? TeamId { get; set; }
         public Team? Team { get; set; }
+
+        public string? SubscriptionId { get; set; }
     }
 }

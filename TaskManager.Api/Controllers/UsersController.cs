@@ -12,7 +12,7 @@ namespace TaskManager.Api.Controllers
 {
     [ApiController]
     [Route("api/[controller]")]
-    [Authorize(Policy = Policies.Admin)] // Administer user management
+    [Authorize(Policy = Policies.User)] // Authenticated users can view directory; role gates inside actions
     public class UsersController : ControllerBase
     {
         private readonly ApplicationDbContext _db;
@@ -24,10 +24,10 @@ namespace TaskManager.Api.Controllers
             _userManager = userManager;
         }
 
-        /// <summary>Пагинированный список пользователей с поиском по email/displayName</summary>
+        /// <summary>Paginated user list with search by email/displayName.</summary>
         [HttpGet]
         [ProducesResponseType(StatusCodes.Status200OK)]
-        public async Task<ActionResult<PagedResult<UserDto>>> GetAll(
+        public async Task<IActionResult> GetAll(
             [FromQuery] int page = 1,
             [FromQuery] int pageSize = 20,
             [FromQuery] string? search = null)
@@ -36,6 +36,15 @@ namespace TaskManager.Api.Controllers
             if (pageSize < 1 || pageSize > 100) pageSize = 20;
 
             var query = _userManager.Users.AsNoTracking();
+
+            var currentSubscriptionId = User.FindFirst("subscription_id")?.Value;
+            var isAdmin = User.IsInRole("Admin");
+            var isSubscriptionOwner = User.IsInRole("SubscriptionOwner");
+
+            if (!isAdmin && !string.IsNullOrWhiteSpace(currentSubscriptionId))
+            {
+                query = query.Where(u => u.SubscriptionId == currentSubscriptionId);
+            }
 
             if (!string.IsNullOrWhiteSpace(search))
             {
@@ -54,34 +63,64 @@ namespace TaskManager.Api.Controllers
                 .Take(pageSize)
                 .ToListAsync();
 
-            var items = new List<UserDto>(users.Count);
-
-            foreach (var user in users)
+            if (isAdmin || isSubscriptionOwner)
             {
-                var roles = await _userManager.GetRolesAsync(user);
+                var items = new List<UserDto>(users.Count);
 
-                items.Add(new UserDto
+                foreach (var user in users)
                 {
-                    Id = user.Id,
-                    Email = user.Email ?? string.Empty,
-                    DisplayName = user.DisplayName ?? string.Empty,
-                    EmailConfirmed = user.EmailConfirmed,
-                    Roles = roles.ToList()
-                });
+                    var roles = await _userManager.GetRolesAsync(user);
+
+                    items.Add(new UserDto
+                    {
+                        Id = user.Id,
+                        Email = user.Email ?? string.Empty,
+                        DisplayName = user.DisplayName ?? string.Empty,
+                        EmailConfirmed = user.EmailConfirmed,
+                        SubscriptionId = user.SubscriptionId,
+                        Roles = roles.ToList()
+                    });
+                }
+
+                var result = new PagedResult<UserDto>
+                {
+                    Total = total,
+                    Page = page,
+                    PageSize = pageSize,
+                    Items = items
+                };
+
+                return Ok(result);
             }
-
-            var result = new PagedResult<UserDto>
+            else
             {
-                Total = total,
-                Page = page,
-                PageSize = pageSize,
-                Items = items
-            };
+                var items = new List<PublicUserDto>(users.Count);
 
-            return Ok(result);
+                foreach (var user in users)
+                {
+                    var roles = await _userManager.GetRolesAsync(user);
+                    items.Add(new PublicUserDto
+                    {
+                        Id = user.Id,
+                        DisplayName = user.DisplayName ?? user.UserName ?? string.Empty,
+                        TeamId = user.TeamId,
+                        Roles = roles.ToList()
+                    });
+                }
+
+                var result = new PagedResult<PublicUserDto>
+                {
+                    Total = total,
+                    Page = page,
+                    PageSize = pageSize,
+                    Items = items
+                };
+
+                return Ok(result);
+            }
         }
 
-        /// <summary>Удалить пользователя по Id. Личные задачи удаляются, публичные остаются без владельца.</summary>
+        /// <summary>Delete a user by Id. Private tasks are removed; public tasks remain without an owner.</summary>
         [HttpDelete("{id}")]
         [ProducesResponseType(StatusCodes.Status204NoContent)]
         [ProducesResponseType(StatusCodes.Status404NotFound)]
@@ -89,16 +128,24 @@ namespace TaskManager.Api.Controllers
         [ProducesResponseType(StatusCodes.Status500InternalServerError)]
         public async Task<IActionResult> Delete([FromRoute] string id)
         {
-            // safeguard: нельзя удалить самого себя
+            var isAdmin = User.IsInRole("Admin");
+            var isSubscriptionOwner = User.IsInRole("SubscriptionOwner");
+
+            if (!isAdmin && !isSubscriptionOwner)
+                return Forbid();
+
+            var currentSubscriptionId = User.FindFirst("subscription_id")?.Value;
+
+            // safeguard: cannot delete yourself
             var me = User.FindFirst(System.Security.Claims.ClaimTypes.NameIdentifier)?.Value
                 ?? User.FindFirst("sub")?.Value;
             if (me == id)
-                return BadRequest("Нельзя удалить самого себя.");
+                return Problem(detail: "You cannot delete yourself.", statusCode: StatusCodes.Status400BadRequest, title: "Invalid operation");
 
-            // Выполним всё в рамках ExecutionStrategy + транзакции
+            // Perform everything within ExecutionStrategy + transaction
             var strategy = _db.Database.CreateExecutionStrategy();
 
-            IActionResult? resultToReturn = null; // захватим результат из лямбды
+            IActionResult? resultToReturn = null; // capture the result from the lambda
 
             await strategy.ExecuteAsync(async () =>
             {
@@ -107,13 +154,68 @@ namespace TaskManager.Api.Controllers
                 var user = await _userManager.FindByIdAsync(id);
                 if (user is null)
                 {
-                    // ничего не меняли — просто выходим
+                    // no changes made — just exit
                     resultToReturn = NotFound(new { message = $"User '{id}' not found" });
                     await tx.RollbackAsync();
                     return;
                 }
 
-                // 1) Забираем все задачи, созданные пользователем
+                var targetRoles = await _userManager.GetRolesAsync(user);
+                var targetIsAdmin = targetRoles.Contains("Admin", StringComparer.OrdinalIgnoreCase);
+                var targetIsOwner = targetRoles.Contains("SubscriptionOwner", StringComparer.OrdinalIgnoreCase);
+                var targetSubscriptionId = user.SubscriptionId;
+
+                if (targetIsAdmin && !isAdmin)
+                {
+                    resultToReturn = Forbid();
+                    await tx.RollbackAsync();
+                    return;
+                }
+
+                if (targetIsOwner && !isAdmin && !isSubscriptionOwner)
+                {
+                    resultToReturn = Forbid();
+                    await tx.RollbackAsync();
+                    return;
+                }
+
+                if (!isAdmin && isSubscriptionOwner)
+                {
+                    if (string.IsNullOrWhiteSpace(currentSubscriptionId) || currentSubscriptionId != targetSubscriptionId)
+                    {
+                        resultToReturn = Forbid();
+                        await tx.RollbackAsync();
+                        return;
+                    }
+                }
+
+                if (targetIsAdmin)
+                {
+                    var admins = await _userManager.GetUsersInRoleAsync("Admin");
+                    if (admins.Count <= 1)
+                    {
+                        resultToReturn = Problem(detail: "Cannot delete the last Admin.", statusCode: StatusCodes.Status400BadRequest, title: "Invalid operation");
+                        await tx.RollbackAsync();
+                        return;
+                    }
+                }
+
+                if (targetIsOwner)
+                {
+                    var owners = await _userManager.GetUsersInRoleAsync("SubscriptionOwner");
+                    var ownersInTargetSubscription = string.IsNullOrWhiteSpace(targetSubscriptionId)
+                        ? owners
+                        : owners.Where(o => o.SubscriptionId == targetSubscriptionId).ToList();
+
+                    if (ownersInTargetSubscription.Count <= 1)
+                    {
+                        resultToReturn = Problem(detail: "Cannot delete the last SubscriptionOwner.", statusCode: StatusCodes.Status400BadRequest, title: "Invalid operation");
+                        await tx.RollbackAsync();
+                        return;
+                    }
+                }
+
+                // 1) Fetch all tasks created by the user
                 var createdTasks = await _db.Tasks
                     .Where(t => t.CreatedById == id)
                     .ToListAsync();
@@ -145,7 +247,7 @@ namespace TaskManager.Api.Controllers
                     _db.Tasks.UpdateRange(shared);
                 }
 
-                // 4) Сбрасываем назначение у задач, созданных другими, но назначенных на пользователя
+                // 4) Clear assignee for tasks created by others but assigned to the user
                 var assignedToUser = await _db.Tasks
                     .Where(t => t.CreatedById != id && t.AssignedToId == id)
                     .ToListAsync();
@@ -160,7 +262,7 @@ namespace TaskManager.Api.Controllers
 
                 await _db.SaveChangesAsync();
 
-                // 5) Удаляем пользователя через Identity
+                // 5) Delete the user through Identity
                 var del = await _userManager.DeleteAsync(user);
                 if (!del.Succeeded)
                 {
@@ -174,7 +276,7 @@ namespace TaskManager.Api.Controllers
                 resultToReturn = NoContent();
             });
 
-            // сюда придём уже после ExecuteAsync
+            // we land here after ExecuteAsync
             return resultToReturn ?? NoContent();
         }
     }

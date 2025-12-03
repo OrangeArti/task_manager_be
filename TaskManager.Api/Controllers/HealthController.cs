@@ -6,7 +6,7 @@ using TaskManager.Shared.Health;
 namespace TaskManager.Api.Controllers
 {
     /// <summary>
-    /// Health-check эндпоинты сервиса.
+    /// Health-check endpoints for the service.
     /// </summary>
     [ApiController]
     [Route("health")]
@@ -21,11 +21,11 @@ namespace TaskManager.Api.Controllers
         }
 
         /// <summary>
-        /// Единый health-check эндпоинт сервиса.
+        /// Single health-check endpoint for the service.
         /// </summary>
-        /// <returns>Стандартный контракт состояния сервиса.</returns>
-        /// <response code="200">Сервис и подключение к БД доступны.</response>
-        /// <response code="503">Сервис недоступен или возникла ошибка подключения.</response>
+        /// <returns>Standard service health contract.</returns>
+        /// <response code="200">Service and database connection are available.</response>
+        /// <response code="503">Service unavailable or database connection error.</response>
         [HttpGet]
         [ProducesResponseType(typeof(HealthStatusDto), StatusCodes.Status200OK)]
         [ProducesResponseType(typeof(HealthStatusDto), StatusCodes.Status503ServiceUnavailable)]

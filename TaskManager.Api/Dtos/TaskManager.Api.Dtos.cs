@@ -3,7 +3,7 @@ using TaskManager.Api.Models;
 namespace TaskManager.Api.Dtos
 {
     /// <summary>
-    /// Публичная форма задачи для отдачи во внешний мир (REST API).
+    /// Public task form returned by the REST API.
     /// </summary>
     public sealed class TaskItemDto
     {

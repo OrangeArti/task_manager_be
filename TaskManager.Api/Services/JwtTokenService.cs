@@ -18,7 +18,7 @@ namespace TaskManager.Api.Services
         public JwtTokenService(IOptions<JwtOptions> options)
         {
             _options = options.Value ?? throw new InvalidOperationException("Jwt options are not configured.");
-            // Требование HS256: ключ минимум 256 бит (32 байта)
+            // HS256 requires the key to be at least 256 bits (32 bytes)
             if (Encoding.UTF8.GetByteCount(_options.Key) < 32)
                 throw new InvalidOperationException("Jwt:Key length must be at least 32 bytes for HS256.");
         }
@@ -32,7 +32,7 @@ namespace TaskManager.Api.Services
                 new("display_name", user.DisplayName ?? string.Empty)
             };
 
-            // роли → клеймы роли
+            // roles -> role claims
             if (roles != null && roles.Count > 0)
             {
                 foreach (var role in roles)

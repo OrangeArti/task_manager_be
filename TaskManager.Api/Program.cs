@@ -8,7 +8,7 @@ using Microsoft.AspNetCore.Identity;
 using Microsoft.IdentityModel.Tokens;
 using System.Text;
 using TaskManager.Api.Models;
-using Microsoft.OpenApi.Models; // ⬅️ нужно для Swagger security
+using Microsoft.OpenApi.Models; // required for Swagger security
 using TaskManager.Api;
 using TaskManager.Api.Services;
 using Microsoft.AspNetCore.Authorization;
@@ -32,7 +32,7 @@ builder.Services.AddSwaggerGen(options =>
         Description = "MVP API for Task Manager (Auth, Tasks, Health)."
     });
 
-    // XML-комментарии (если есть файл)
+    // XML comments (if the file exists)
     var xmlFile = $"{Assembly.GetExecutingAssembly().GetName().Name}.xml";
     var xmlPath = Path.Combine(AppContext.BaseDirectory, xmlFile);
     if (File.Exists(xmlPath))
@@ -40,10 +40,10 @@ builder.Services.AddSwaggerGen(options =>
         options.IncludeXmlComments(xmlPath, includeControllerXmlComments: true);
     }
 
-    // 🔐 JWT в Swagger (кнопка Authorize)
+    // JWT in Swagger (Authorize button)
     options.AddSecurityDefinition("Bearer", new OpenApiSecurityScheme
     {
-        Description = "Введите JWT токен в формате: Bearer {your token}",
+        Description = "Enter the JWT token in the format: Bearer {your token}",
         Name = "Authorization",
         In = ParameterLocation.Header,
         Type = SecuritySchemeType.ApiKey,
@@ -69,7 +69,7 @@ builder.Services.AddSwaggerGen(options =>
     });
 });
 
-// DbContext + ретраи
+// DbContext + retries
 if (!builder.Environment.IsEnvironment("Testing"))
 {
     builder.Services.AddDbContext<ApplicationDbContext>(options =>
@@ -115,7 +115,7 @@ builder.Services
         };
     });
 
-// ⬅️ регистрируем Authorization (важно перед UseAuthorization)
+// Register Authorization (must run before UseAuthorization)
 builder.Services.AddAuthorization(
     options =>
     {
@@ -147,7 +147,7 @@ var disableHttps = builder.Configuration.GetValue<bool>("DisableHttps");
 
 var app = builder.Build();
 
-// Авто-миграции
+// Auto-migrations
 using (var scope = app.Services.CreateScope())
 {
     var db = scope.ServiceProvider.GetRequiredService<ApplicationDbContext>();
@@ -156,7 +156,7 @@ using (var scope = app.Services.CreateScope())
         await db.Database.MigrateAsync();
     }
 
-    // 🔹 Сид ролей и админа
+    // Seed roles and default admin
     if (!builder.Environment.IsEnvironment("Testing"))
     {
          await IdentitySeeder.SeedAsync(app.Services, app.Configuration);
@@ -181,7 +181,7 @@ if (!disableHttps)
 
 app.UseCors("FrontendDev");
 
-app.UseAuthentication();   // ⬅️ до UseAuthorization
+app.UseAuthentication();   // must be called before UseAuthorization
 app.UseAuthorization();
 
 app.MapControllers();

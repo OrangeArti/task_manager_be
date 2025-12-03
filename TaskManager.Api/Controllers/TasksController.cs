@@ -15,7 +15,7 @@ namespace TaskManager.Api.Controllers
     /// </summary>
     [ApiController]
     [Route("api/[controller]")]
-    [Authorize(Policy = Policies.User)] // позже ограничим ролью/политикой
+    [Authorize(Policy = Policies.User)] // may tighten role/policy later
     [Produces("application/json")]
     public class TasksController : ControllerBase
     {
@@ -27,7 +27,7 @@ namespace TaskManager.Api.Controllers
         }
 
         /// <summary>
-        /// Возвращает идентификатор текущего пользователя из клеймов (NameIdentifier или sub).
+        /// Returns the current user identifier from claims (NameIdentifier or sub).
         /// </summary>
         private string? GetCurrentUserId()
         {
@@ -90,13 +90,13 @@ namespace TaskManager.Api.Controllers
         }
 
         /// <summary>
-        /// Возвращает список задач с пагинацией и сортировкой.
+        /// Returns a paginated, sorted list of tasks.
         /// </summary>
         /// <remarks>
-        /// Пример: /api/tasks?page=1&amp;pageSize=20&amp;sortBy=dueDate&amp;sortDir=asc
-        /// Поля сортировки: createdAt | dueDate | priority | title.
+        /// Example: /api/tasks?page=1&amp;pageSize=20&amp;sortBy=dueDate&amp;sortDir=asc
+        /// Sortable fields: createdAt | dueDate | priority | title.
         /// </remarks>
-        /// <response code="200">Список задач успешно получен.</response>
+        /// <response code="200">Task list fetched successfully.</response>
         [HttpGet]
         [ProducesResponseType(StatusCodes.Status200OK)]
         public async Task<ActionResult<PagedResult<TaskItemDto>>> GetAll([FromQuery] TaskListQuery query)
@@ -192,10 +192,10 @@ namespace TaskManager.Api.Controllers
         }
 
         /// <summary>
-        /// Создаёт новую задачу.
+        /// Creates a new task.
         /// </summary>
-        /// <response code="201">Задача создана, возвращает объект и Location.</response>
-        /// <response code="400">Данные не прошли валидацию.</response>
+        /// <response code="201">Task created; returns object and Location.</response>
+        /// <response code="400">Validation failed.</response>
         [HttpPost]
         [ProducesResponseType(StatusCodes.Status201Created)]
         [ProducesResponseType(StatusCodes.Status400BadRequest)]
@@ -343,18 +343,18 @@ namespace TaskManager.Api.Controllers
         }
 
         /// <summary>
-        /// Возвращает задачу по идентификатору.
+        /// Returns a task by identifier.
         /// </summary>
-        /// <param name="id">Идентификатор задачи.</param>
-        /// <response code="200">Задача найдена.</response>
-        /// <response code="404">Задача не найдена.</response>
+        /// <param name="id">Task identifier.</param>
+        /// <response code="200">Task found.</response>
+        /// <response code="404">Task not found.</response>
         [HttpGet("{id:int}", Name = "GetTaskById")]
         [ProducesResponseType(StatusCodes.Status200OK)]
         [ProducesResponseType(StatusCodes.Status404NotFound)]
         [ProducesResponseType(StatusCodes.Status403Forbidden)]
         public async Task<ActionResult<TaskItemDto>> GetById([FromRoute] int id)
         {
-            // берём текущего пользователя (двойной способ)
+            // obtain current user id (two-claim lookup)
             var currentUserId = GetCurrentUserId();
             if (string.IsNullOrEmpty(currentUserId))
                 return Unauthorized();
@@ -395,14 +395,14 @@ namespace TaskManager.Api.Controllers
         }
 
         /// <summary>
-        /// Обновляет статус задачи (выполнена/нет).
+        /// Updates a task status (complete/incomplete).
         /// </summary>
-        /// <param name="id">Идентификатор задачи.</param>
-        /// <param name="request">Тело запроса с новым значением статуса (<c>IsCompleted</c>).</param>
-        /// <response code="200">Статус изменён, возвращаем обновлённый объект.</response>
-        /// <response code="204">Статус уже имел переданное значение (идемпотентно, без изменений).</response>
-        /// <response code="400">Некорректный запрос (нет поля IsCompleted или неверный формат).</response>
-        /// <response code="404">Задача не найдена.</response>
+        /// <param name="id">Task identifier.</param>
+        /// <param name="request">Request body with the new <c>IsCompleted</c> value.</param>
+        /// <response code="200">Status changed; returns updated object.</response>
+        /// <response code="204">Status already had the provided value (idempotent, no changes).</response>
+        /// <response code="400">Invalid request (missing IsCompleted or wrong format).</response>
+        /// <response code="404">Task not found.</response>
         [HttpPatch("{id:int}/status")]
         [ProducesResponseType(StatusCodes.Status200OK)]
         [ProducesResponseType(StatusCodes.Status204NoContent)]
@@ -432,7 +432,7 @@ namespace TaskManager.Api.Controllers
             var newValue = request.IsCompleted!.Value;
 
             if (entity.IsCompleted == newValue)
-                return NoContent(); // идемпотентный ответ — ничего не изменили
+                return NoContent(); // idempotent response — nothing changed
 
             entity.IsCompleted = newValue;
             await _db.SaveChangesAsync();
@@ -441,14 +441,14 @@ namespace TaskManager.Api.Controllers
         }
 
         /// <summary>
-        /// Полностью обновляет редактируемые поля задачи (без статуса).
+        /// Fully updates editable task fields (excluding status).
         /// </summary>
-        /// <param name="id">Идентификатор задачи.</param>
-        /// <param name="request">Тело запроса с новыми значениями полей (Title, Description, DueDate, Priority).</param>
-        /// <response code="200">Задача обновлена, возвращаем актуальный объект.</response>
-        /// <response code="204">Данные совпадают с текущими — изменений нет.</response>
-        /// <response code="400">Данные не прошли валидацию.</response>
-        /// <response code="404">Задача не найдена.</response>
+        /// <param name="id">Task identifier.</param>
+        /// <param name="request">Request body with new values (Title, Description, DueDate, Priority).</param>
+        /// <response code="200">Task updated; returns the current object.</response>
+        /// <response code="204">Data matches current values — no changes.</response>
+        /// <response code="400">Validation failed.</response>
+        /// <response code="404">Task not found.</response>
         [HttpPut("{id:int}")]
         [ProducesResponseType(StatusCodes.Status200OK)]
         [ProducesResponseType(StatusCodes.Status204NoContent)]
@@ -649,11 +649,11 @@ namespace TaskManager.Api.Controllers
         }
 
         /// <summary>
-        /// Удаляет задачу по идентификатору.
+        /// Deletes a task by identifier.
         /// </summary>
-        /// <param name="id">Идентификатор задачи.</param>
-        /// <response code="204">Задача успешно удалена.</response>
-        /// <response code="404">Задача не найдена.</response>
+        /// <param name="id">Task identifier.</param>
+        /// <response code="204">Task deleted successfully.</response>
+        /// <response code="404">Task not found.</response>
         [HttpDelete("{id:int}")]
         [ProducesResponseType(StatusCodes.Status204NoContent)]
         [ProducesResponseType(StatusCodes.Status404NotFound)]
@@ -683,14 +683,14 @@ namespace TaskManager.Api.Controllers
         }
 
         /// <summary>
-        /// Пометить задачу как проблемную (с описанием).
+        /// Mark a task as problematic (with description).
         /// </summary>
-        /// <response code="200">Задача помечена как проблемная (возвращает обновлённый объект).</response>
-        /// <response code="204">Состояние уже было таким же (идемпотентно, без изменений).</response>
-        /// <response code="400">Некорректное тело запроса.</response>
-        /// <response code="401">Не авторизован.</response>
-        /// <response code="403">Нет прав на изменение (не владелец).</response>
-        /// <response code="404">Задача не найдена.</response>
+        /// <response code="200">Task marked as problematic (returns updated object).</response>
+        /// <response code="204">State was already the same (idempotent, no changes).</response>
+        /// <response code="400">Invalid request body.</response>
+        /// <response code="401">Unauthorized.</response>
+        /// <response code="403">Forbidden (not the owner).</response>
+        /// <response code="404">Task not found.</response>
         [HttpPatch("{id:int}/problem")]
         [ProducesResponseType(StatusCodes.Status200OK)]
         [ProducesResponseType(StatusCodes.Status204NoContent)]
@@ -722,7 +722,7 @@ namespace TaskManager.Api.Controllers
 
             var newDescription = request.Description.Trim();
 
-            // идемпотентность: уже проблемная с тем же текстом
+            // idempotency: already marked problematic with the same text
             if (entity.IsProblem && string.Equals(entity.ProblemDescription ?? "", newDescription, StringComparison.Ordinal))
                 return NoContent();
 
@@ -737,13 +737,13 @@ namespace TaskManager.Api.Controllers
         }
 
         /// <summary>
-        /// Снять пометку «проблемная» с задачи.
+        /// Remove the "problematic" marker from a task.
         /// </summary>
-        /// <response code="200">Проблема снята (возвращает обновлённый объект).</response>
-        /// <response code="204">Задача уже была без проблемы.</response>
-        /// <response code="401">Не авторизован.</response>
-        /// <response code="403">Нет прав на изменение (не владелец).</response>
-        /// <response code="404">Задача не найдена.</response>
+        /// <response code="200">Problem cleared (returns updated object).</response>
+        /// <response code="204">Task was already without a problem.</response>
+        /// <response code="401">Unauthorized.</response>
+        /// <response code="403">Forbidden (not the owner).</response>
+        /// <response code="404">Task not found.</response>
         [HttpDelete("{id:int}/problem")]
         [ProducesResponseType(StatusCodes.Status200OK)]
         [ProducesResponseType(StatusCodes.Status204NoContent)]

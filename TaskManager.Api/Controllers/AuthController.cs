@@ -48,18 +48,18 @@ namespace TaskManager.Api.Controllers
             if (!result.Succeeded)
                 return BadRequest(result.Errors);
 
-            // Если юзер успешно создан — добавляем роль User
+            // If user is created successfully, add the User role
             await _userManager.AddToRoleAsync(user, "User");
 
             var roles = await _userManager.GetRolesAsync(user);
             var token = _jwt.CreateToken(user, roles);
 
-            // удаляем просроченные refresh токены
+            // remove expired refresh tokens
             var expired = _db.RefreshTokens.Where(r => r.ExpiresAt < DateTime.UtcNow);
             _db.RefreshTokens.RemoveRange(expired);
             await _db.SaveChangesAsync();
 
-            // 🔹 убираем старые активные refresh токены
+            // revoke existing active refresh tokens
             var oldTokens = _db.RefreshTokens.Where(r => r.UserId == user.Id && !r.IsRevoked);
             foreach (var t in oldTokens)
                 t.IsRevoked = true;
@@ -99,12 +99,12 @@ namespace TaskManager.Api.Controllers
             var roles = await _userManager.GetRolesAsync(user);
             var token = _jwt.CreateToken(user, roles);
 
-            // удаляем просроченные refresh токены
+            // remove expired refresh tokens
             var expired = _db.RefreshTokens.Where(r => r.ExpiresAt < DateTime.UtcNow);
             _db.RefreshTokens.RemoveRange(expired);
             await _db.SaveChangesAsync();
 
-            // 🔹 убираем старые активные refresh токены
+            // revoke existing active refresh tokens
             var oldTokens = _db.RefreshTokens.Where(r => r.UserId == user.Id && !r.IsRevoked);
             foreach (var t in oldTokens)
                 t.IsRevoked = true;
@@ -139,22 +139,22 @@ namespace TaskManager.Api.Controllers
             if (stored == null || stored.IsRevoked || stored.ExpiresAt < DateTime.UtcNow)
                 return Unauthorized("Invalid refresh token.");
 
-            // помечаем старый токен отозванным
+            // mark the old token as revoked
             stored.IsRevoked = true;
             await _db.SaveChangesAsync();
 
-            // удаляем просроченные refresh токены
+            // remove expired refresh tokens
             var expired = _db.RefreshTokens.Where(r => r.ExpiresAt < DateTime.UtcNow);
             _db.RefreshTokens.RemoveRange(expired);
             await _db.SaveChangesAsync();
 
-            // 🔹 убираем старые активные refresh токены
+            // revoke existing active refresh tokens
             var oldTokens = _db.RefreshTokens.Where(r => r.UserId == stored.UserId && !r.IsRevoked);
             foreach (var t in oldTokens)
                 t.IsRevoked = true;
             await _db.SaveChangesAsync();
 
-            // создаём новый refresh токен
+            // create a new refresh token
             var newRefresh = new RefreshToken
             {
                 Token = Guid.NewGuid().ToString("N"),

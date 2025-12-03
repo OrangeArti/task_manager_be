@@ -4,8 +4,8 @@ using TaskManager.Api.Models;
 namespace TaskManager.Api.Dtos
 {
     /// <summary>
-    /// Полное обновление редактируемых полей задачи.
-    /// Статус меняется отдельным PATCH /status.
+    /// Full update of editable task fields.
+    /// Status is changed separately via PATCH /status.
     /// </summary>
     public sealed class UpdateTaskRequest
     {
@@ -20,16 +20,16 @@ namespace TaskManager.Api.Dtos
         [Range(0, 2)]
         public int Priority { get; set; } = 0;
 
-        /// <summary>Кому назначена задача.</summary>
+        /// <summary>Assignee for the task.</summary>
         public string? AssignedToId { get; set; }
 
-        /// <summary>Определяет, виден ли исполнитель остальным пользователям.</summary>
+        /// <summary>Whether the assignee is visible to other users.</summary>
         public bool? IsAssigneeVisibleToOthers { get; set; }
 
-        /// <summary>Команда задачи.</summary>
+        /// <summary>Task team.</summary>
         public int? TeamId { get; set; }
 
-        /// <summary>Область видимости: Private | TeamPublic | GlobalPublic.</summary>
+        /// <summary>Visibility scope: Private | TeamPublic | GlobalPublic.</summary>
         [StringLength(32)]
         public string? VisibilityScope { get; set; }
     }

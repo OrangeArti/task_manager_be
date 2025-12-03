@@ -8,7 +8,7 @@ using TaskManager.Core.Dtos.Teams;
 namespace TaskManager.Api.Controllers
 {
     /// <summary>
-    /// Управление командами: просмотр, создание, обновление, удаление и управление участниками.
+    /// Team management: list, create, update, delete, and manage members.
     /// </summary>
     [ApiController]
     [Route("api/[controller]")]
@@ -23,7 +23,7 @@ namespace TaskManager.Api.Controllers
             _teamService = teamService;
         }
 
-        /// <summary>Возвращает список всех команд.</summary>
+        /// <summary>Returns all teams.</summary>
         [HttpGet]
         [ProducesResponseType(StatusCodes.Status200OK)]
         public async Task<ActionResult<IEnumerable<TeamDto>>> GetAllAsync()
@@ -32,7 +32,7 @@ namespace TaskManager.Api.Controllers
             return Ok(teams);
         }
 
-        /// <summary>Возвращает команду по её идентификатору.</summary>
+        /// <summary>Returns a team by its identifier.</summary>
         [HttpGet("by-id/{id:int}", Name = nameof(GetByIdAsync))]
         [ProducesResponseType(StatusCodes.Status200OK)]
         [ProducesResponseType(StatusCodes.Status404NotFound)]
@@ -47,7 +47,7 @@ namespace TaskManager.Api.Controllers
             return Ok(team);
         }
 
-        /// <summary>Создаёт новую команду.</summary>
+        /// <summary>Creates a new team.</summary>
         [HttpPost]
         [ProducesResponseType(StatusCodes.Status201Created)]
         [ProducesResponseType(StatusCodes.Status400BadRequest)]
@@ -64,7 +64,7 @@ namespace TaskManager.Api.Controllers
             return CreatedAtRoute(nameof(GetByIdAsync), new { id = createdTeam.Id }, createdTeam);
         }
 
-        /// <summary>Обновляет информацию о команде.</summary>
+        /// <summary>Updates team info.</summary>
         [HttpPut("{id:int}")]
         [ProducesResponseType(StatusCodes.Status200OK)]
         [ProducesResponseType(StatusCodes.Status400BadRequest)]
@@ -92,7 +92,7 @@ namespace TaskManager.Api.Controllers
             return Ok(updatedTeam);
         }
 
-        /// <summary>Удаляет команду.</summary>
+        /// <summary>Deletes a team.</summary>
         [HttpDelete("{id:int}")]
         [ProducesResponseType(StatusCodes.Status204NoContent)]
         [ProducesResponseType(StatusCodes.Status404NotFound)]
@@ -107,7 +107,7 @@ namespace TaskManager.Api.Controllers
             return NoContent();
         }
 
-        /// <summary>Добавляет пользователя в команду.</summary>
+        /// <summary>Adds a user to the team.</summary>
         [Authorize(Policy = Policies.TeamLeadOrAdmin)]
         [HttpPost("{teamId:int}/members")]
         [ProducesResponseType(StatusCodes.Status200OK)]
@@ -123,7 +123,7 @@ namespace TaskManager.Api.Controllers
             return Ok(new { message = "Member added successfully" });
         }
 
-        /// <summary>Удаляет пользователя из команды.</summary>
+        /// <summary>Removes a user from the team.</summary>
         [Authorize(Policy = Policies.TeamLeadOrAdmin)]
         [HttpDelete("{teamId:int}/members")]
         [ProducesResponseType(StatusCodes.Status200OK)]
@@ -139,7 +139,7 @@ namespace TaskManager.Api.Controllers
             return Ok(new { message = "Member removed successfully" });
         }
 
-        /// <summary>Возвращает список участников команды.</summary>
+        /// <summary>Returns the list of team members.</summary>
         [Authorize(Policy = Policies.TeamLeadOrAdmin)]
         [HttpGet("{teamId:int}/members")]
         [ProducesResponseType(StatusCodes.Status200OK)]

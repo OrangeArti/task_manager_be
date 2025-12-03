@@ -4,7 +4,7 @@ using TaskManager.Api.Models;
 
 namespace TaskManager.Api.Data
 {
-    // ВАЖНО: наследуемся от IdentityDbContext<ApplicationUser>
+    // IMPORTANT: inherit from IdentityDbContext<ApplicationUser>
 	public class ApplicationDbContext : IdentityDbContext<ApplicationUser>
 	{
 		public ApplicationDbContext(DbContextOptions<ApplicationDbContext> options)
@@ -18,7 +18,7 @@ namespace TaskManager.Api.Data
 
 		protected override void OnModelCreating(ModelBuilder modelBuilder)
 		{
-            base.OnModelCreating(modelBuilder); // не убирать, это регистрирует таблицы Identity
+            base.OnModelCreating(modelBuilder); // keep this to register Identity tables
 
 			modelBuilder.Entity<TaskItem>(e =>
 			{

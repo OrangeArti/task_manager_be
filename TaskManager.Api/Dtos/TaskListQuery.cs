@@ -7,41 +7,41 @@ namespace TaskManager.Api.Dtos
     {
         private const int MaxPageSize = 100;
 
-        /// <summary>Номер страницы, начиная с 1. По умолчанию 1.</summary>
+        /// <summary>Page number starting from 1. Default is 1.</summary>
         [Range(1, int.MaxValue)]
         public int Page { get; init; } = 1;
 
-        /// <summary>Размер страницы. По умолчанию 20. Максимум 100.</summary>
+        /// <summary>Page size. Default is 20. Maximum is 100.</summary>
         [Range(1, MaxPageSize)]
         public int PageSize { get; init; } = 20;
 
-        /// <summary>Поле сортировки: createdAt | dueDate | priority | title.</summary>
+        /// <summary>Sort field: createdAt | dueDate | priority | title.</summary>
         public string? SortBy { get; init; } = "createdAt";
 
-        /// <summary>Направление сортировки: asc | desc.</summary>
+        /// <summary>Sort direction: asc | desc.</summary>
         public string? SortDir { get; init; } = "desc";
 
-        // --- Фильтры ---
-        /// <summary>Показывать завершённые/незавершённые. null — не фильтровать.</summary>
+        // --- Filters ---
+        /// <summary>Show completed/incompleted tasks; null means no filtering.</summary>
         public bool? IsCompleted { get; init; }
 
-        /// <summary>Точный приоритет: 0=Low,1=Medium,2=High. null — не фильтровать.</summary>
+        /// <summary>Exact priority: 0=Low,1=Medium,2=High; null means no filtering.</summary>
         [Range(0, 2)]
         public int? Priority { get; init; }
 
-        /// <summary>Поиск по Title/Description (contains, case-insensitive).</summary>
+        /// <summary>Search by Title/Description (contains, case-insensitive).</summary>
         public string? Search { get; init; }
 
-        /// <summary>Дедлайн не раньше этой даты (UTC). null — без нижней границы.</summary>
+        /// <summary>Due date not earlier than this UTC date; null means no lower bound.</summary>
         public DateTime? DueDateFrom { get; init; }
 
-        /// <summary>Дедлайн не позже этой даты (UTC). null — без верхней границы.</summary>
+        /// <summary>Due date not later than this UTC date; null means no upper bound.</summary>
         public DateTime? DueDateTo { get; init; }
 
         [StringLength(32)]
         public string? VisibilityScope { get; set; }
 
-        // нормализуем значения, чтобы избежать if в контроллере
+        // normalize values to avoid extra branching in the controller
         public (int page, int pageSize) NormalizePaging()
         {
             var p = Page < 1 ? 1 : Page;
@@ -55,7 +55,7 @@ namespace TaskManager.Api.Dtos
             var dir = (SortDir ?? "desc").Trim().ToLowerInvariant();
             var isDesc = dir == "desc";
 
-            // whitelist полей
+            // whitelist allowed fields
             field = field switch
             {
                 "createdat" => "createdAt",

@@ -10,7 +10,7 @@ namespace TaskManager.Api.Migrations
         /// <inheritdoc />
         protected override void Up(MigrationBuilder migrationBuilder)
         {
-            // 0) На всякий случай: если есть FK — снимем (старый/частично применённый)
+            // 0) Just in case: drop FK if it exists (old/partially applied)
             migrationBuilder.Sql(@"
         IF EXISTS (
             SELECT 1 FROM sys.foreign_keys 
@@ -21,7 +21,7 @@ namespace TaskManager.Api.Migrations
         END
         ");
 
-            // 1) Индекс IX_Tasks_OwnerId — если есть, снимем перед изменением столбца
+            // 1) Drop IX_Tasks_OwnerId index before changing the column, if it exists
             migrationBuilder.Sql(@"
         IF EXISTS (SELECT 1 FROM sys.indexes WHERE name = 'IX_Tasks_OwnerId' AND object_id = OBJECT_ID('dbo.Tasks'))
         BEGIN
@@ -29,7 +29,7 @@ namespace TaskManager.Api.Migrations
         END
         ");
 
-            // 2) Привести OwnerId к nvarchar(450) NULL, только если это ещё не так
+            // 2) Convert OwnerId to nvarchar(450) NULL if it is still in the old shape
             migrationBuilder.Sql(@"
         IF EXISTS (
             SELECT 1
@@ -40,7 +40,7 @@ namespace TaskManager.Api.Migrations
             AND (c.max_length <> 900 OR t.name <> 'nvarchar' OR c.is_nullable = 0)
         )
         BEGIN
-            -- снять дефолт-constraint если есть
+            -- drop default constraint if it exists
             DECLARE @dc sysname;
             SELECT @dc = d.[name]
             FROM sys.default_constraints d
@@ -52,7 +52,7 @@ namespace TaskManager.Api.Migrations
         END
         ");
 
-            // 3) Колонка isPublic — создать, если её ещё нет
+            // 3) Add isPublic column if it does not exist
             migrationBuilder.Sql(@"
         IF COL_LENGTH('dbo.Tasks', 'isPublic') IS NULL
         BEGIN
@@ -60,7 +60,7 @@ namespace TaskManager.Api.Migrations
         END
         ");
 
-            // 4) Почистить данные: OwnerId -> NULL, если нет такого пользователя или пустая строка
+            // 4) Clean data: OwnerId -> NULL if the user does not exist or value is empty
             migrationBuilder.Sql(@"
         UPDATE T SET T.OwnerId = NULL
         FROM [dbo].[Tasks] AS T
@@ -68,7 +68,7 @@ namespace TaskManager.Api.Migrations
         WHERE U.[Id] IS NULL OR T.[OwnerId] = '';
         ");
 
-            // 5) Восстановить индекс IX_Tasks_OwnerId, если его нет
+            // 5) Recreate IX_Tasks_OwnerId index if missing
             migrationBuilder.Sql(@"
         IF NOT EXISTS (SELECT 1 FROM sys.indexes WHERE name = 'IX_Tasks_OwnerId' AND object_id = OBJECT_ID('dbo.Tasks'))
         BEGIN
@@ -76,7 +76,7 @@ namespace TaskManager.Api.Migrations
         END
         ");
 
-            // 6) Добавить FK, если его ещё нет
+            // 6) Add FK if missing
             migrationBuilder.Sql(@"
         IF NOT EXISTS (
             SELECT 1 FROM sys.foreign_keys 
@@ -92,7 +92,7 @@ namespace TaskManager.Api.Migrations
 
         protected override void Down(MigrationBuilder migrationBuilder)
         {
-            // снять FK, если есть
+            // Drop FK if it exists
             migrationBuilder.Sql(@"
         IF EXISTS (
             SELECT 1 FROM sys.foreign_keys 
@@ -103,7 +103,7 @@ namespace TaskManager.Api.Migrations
         END
         ");
 
-            // снять индекс, если есть
+            // Drop index if it exists
             migrationBuilder.Sql(@"
         IF EXISTS (SELECT 1 FROM sys.indexes WHERE name = 'IX_Tasks_OwnerId' AND object_id = OBJECT_ID('dbo.Tasks'))
         BEGIN
@@ -111,7 +111,7 @@ namespace TaskManager.Api.Migrations
         END
         ");
 
-            // вернуть OwnerId к старому типу (как было в auto-Down)
+            // Revert OwnerId to the old type (same as auto-Down)
             migrationBuilder.Sql(@"
         IF EXISTS (
             SELECT 1
@@ -126,7 +126,7 @@ namespace TaskManager.Api.Migrations
         END
         ");
 
-            // снести default + колонку isPublic (опционально, для симметрии)
+            // Remove default and isPublic column (optional for symmetry)
             migrationBuilder.Sql(@"
         IF OBJECT_ID('DF_Tasks_isPublic', 'D') IS NOT NULL
         BEGIN

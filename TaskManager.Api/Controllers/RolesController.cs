@@ -41,7 +41,7 @@ namespace TaskManager.Api.Controllers
         public async Task<IActionResult> GetUserRoles(string userId)
         {
             var user = await _userManager.FindByIdAsync(userId);
-            if (user == null) return NotFound("User not found.");
+            if (user == null) return NotFound(new ProblemDetails { Title = "Not Found", Detail = "User not found." });
 
             var roles = await _userManager.GetRolesAsync(user);
             return Ok(new { user.Email, Roles = roles });
@@ -52,10 +52,10 @@ namespace TaskManager.Api.Controllers
         public async Task<IActionResult> AssignRole([FromBody] RoleAssignRequest request)
         {
             var user = await _userManager.FindByIdAsync(request.UserId);
-            if (user == null) return NotFound("User not found.");
+            if (user == null) return NotFound(new ProblemDetails { Title = "Not Found", Detail = "User not found." });
 
             if (!await _roleManager.RoleExistsAsync(request.RoleName))
-                return BadRequest("Role does not exist.");
+                return BadRequest(new ProblemDetails { Title = "Invalid role", Detail = "Role does not exist." });
 
             var result = await _userManager.AddToRoleAsync(user, request.RoleName);
             if (!result.Succeeded) return BadRequest(result.Errors);
@@ -69,7 +69,7 @@ namespace TaskManager.Api.Controllers
         public async Task<IActionResult> RemoveRole([FromBody] RoleAssignRequest request)
         {
             var user = await _userManager.FindByIdAsync(request.UserId);
-            if (user == null) return NotFound("User not found.");
+            if (user == null) return NotFound(new ProblemDetails { Title = "Not Found", Detail = "User not found." });
 
             var result = await _userManager.RemoveFromRoleAsync(user, request.RoleName);
             if (!result.Succeeded) return BadRequest(result.Errors);
