@@ -7,7 +7,7 @@ RESTful backend for tasks, teams, users, roles, and auth. Built with ASP.NET Cor
 - Supports teams and membership management.
 - Provides user directory + CRUD (admin/owner for management; all authenticated users can view directory with public fields; subscription owners see/manage only their subscription), roles management, and authentication (register/login/refresh/logout) with JWT + refresh tokens. Admin/owner get full management fields; regular users only see public directory fields.
 - Enforces fine-grained authorization for task actions (owner/team lead/subscription owner/admin).
-- Exposes health checks for app/DB connectivity.
+- Exposes health checks with database connectivity, pending migrations metadata, and trace IDs; structured logging with scopes and correlation headers.
 
 ## Getting Started
 
@@ -83,12 +83,13 @@ dotnet test -v n
 
 ### Coverage highlights
 - **AuthController**: register, login, refresh, logout (success, invalid/expired tokens, duplicate email, weak password).
+- **Auth rate limiting**: login/register (tight policy) and refresh/logout (softer policy) return 429 when limits are exceeded.
 - **TasksController**: CRUD, filters (isCompleted, priority, search), sorting, visibility rules (private/team/global, hidden assignees), problem mark/unmark with permissions and idempotency.
 - **TeamsController**: list, get by id, create/update/delete with validation, members add/remove/list with role checks.
 - **UsersController**: pagination + search, directory view for regular users (public fields), full management view for admin/owner, subscription scoping for owners, delete self-guard, task cleanup/reassignment on delete, 404 path.
 - **RolesController**: list roles, get user roles, assign/remove with success and error paths.
 - **TaskAccessEvaluator**: permission matrix for edit status/task/delete/problem mark/unmark across roles/scopes.
-- **HealthController**: healthy path and DB-failure path (returns 503/Unhealthy).
+- **HealthController**: healthy path, DB-failure path (returns 503/Unhealthy), and degraded state when migrations are pending (metadata includes traceId and pendingMigrations).
 
 ### Latest test run
-`dotnet test -v n` — **all 66 tests passed** (see summary above).
+`dotnet test -v n` — **all 72 tests passed** (see summary above).

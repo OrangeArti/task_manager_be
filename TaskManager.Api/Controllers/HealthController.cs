@@ -1,7 +1,9 @@
 using Microsoft.AspNetCore.Mvc;
 using Microsoft.EntityFrameworkCore;
 using TaskManager.Api.Data;
+using TaskManager.Api.Health;
 using TaskManager.Shared.Health;
+using System.Diagnostics;
 
 namespace TaskManager.Api.Controllers
 {
@@ -13,11 +15,13 @@ namespace TaskManager.Api.Controllers
     [Produces("application/json")]
     public class HealthController : ControllerBase
     {
-        private readonly ApplicationDbContext _context;
+        private readonly IDatabaseHealthProbe _dbProbe;
+        private readonly ILogger<HealthController> _logger;
 
-        public HealthController(ApplicationDbContext context)
+        public HealthController(IDatabaseHealthProbe dbProbe, ILogger<HealthController> logger)
         {
-            _context = context;
+            _dbProbe = dbProbe;
+            _logger = logger;
         }
 
         /// <summary>
@@ -38,27 +42,44 @@ namespace TaskManager.Api.Controllers
                 Metadata = new Dictionary<string, string>()
             };
 
+            var traceId = Activity.Current?.Id ?? HttpContext?.TraceIdentifier ?? Guid.NewGuid().ToString();
+            response.Metadata!["traceId"] = traceId;
+
             try
             {
-                var canConnect = await _context.Database.CanConnectAsync();
-                if (canConnect)
+                var probe = await _dbProbe.CheckAsync();
+
+                if (!probe.CanConnect)
                 {
-                    response.Status = "Healthy";
-                    response.Details = "Application and database are reachable.";
-                    response.Metadata!["database"] = "connected";
-                    return Ok(response);
+                    response.Status = "Unhealthy";
+                    response.Details = probe.Error ?? "Unable to connect to the database.";
+                    response.Metadata!["database"] = "unreachable";
+                    _logger.LogError("Health check failed: {Detail} (traceId={TraceId})", response.Details, traceId);
+                    return StatusCode(StatusCodes.Status503ServiceUnavailable, response);
                 }
 
-                response.Status = "Unhealthy";
-                response.Details = "Unable to connect to the database.";
-                response.Metadata!["database"] = "unreachable";
-                return StatusCode(StatusCodes.Status503ServiceUnavailable, response);
+                response.Metadata!["database"] = "connected";
+                response.Metadata!["pendingMigrations"] = probe.PendingMigrations.ToString();
+
+                if (probe.PendingMigrations > 0)
+                {
+                    response.Status = "Degraded";
+                    response.Details = "Database reachable but migrations are pending.";
+                    _logger.LogWarning("Health degraded: {Detail} (traceId={TraceId}, pendingMigrations={Pending})",
+                        response.Details, traceId, probe.PendingMigrations);
+                    return StatusCode(StatusCodes.Status503ServiceUnavailable, response);
+                }
+
+                response.Status = "Healthy";
+                response.Details = "Application and database are reachable.";
+                return Ok(response);
             }
             catch (Exception ex)
             {
                 response.Status = "Unhealthy";
                 response.Details = ex.Message;
                 response.Metadata!["database"] = "error";
+                _logger.LogError(ex, "Health check threw an exception (traceId={TraceId})", traceId);
                 return StatusCode(StatusCodes.Status503ServiceUnavailable, response);
             }
         }

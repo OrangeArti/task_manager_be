@@ -5,6 +5,7 @@ using TaskManager.Api.Models;
 using TaskManager.Api.Services;
 using TaskManager.Api.Data;
 using Microsoft.EntityFrameworkCore;
+using Microsoft.AspNetCore.RateLimiting;
 
 namespace TaskManager.Api.Controllers
 {
@@ -31,6 +32,7 @@ namespace TaskManager.Api.Controllers
 
         /// <summary>Register new user and return JWT</summary>
         [HttpPost("register")]
+        [EnableRateLimiting("AuthTight")]
         public async Task<ActionResult<AuthResponse>> Register([FromBody] RegisterRequest request)
         {
             var exists = await _userManager.FindByEmailAsync(request.Email);
@@ -86,6 +88,7 @@ namespace TaskManager.Api.Controllers
 
         /// <summary>Login and return JWT</summary>
         [HttpPost("login")]
+        [EnableRateLimiting("AuthTight")]
         public async Task<ActionResult<AuthResponse>> Login([FromBody] LoginRequest request)
         {
             var user = await _userManager.FindByEmailAsync(request.Email);
@@ -130,6 +133,7 @@ namespace TaskManager.Api.Controllers
 
         /// <summary>Refresh JWT using a valid refresh token (with rotation)</summary>
         [HttpPost("refresh")]
+        [EnableRateLimiting("AuthSoft")]
         public async Task<ActionResult<AuthResponse>> Refresh([FromBody] string refreshToken)
         {
             var stored = await _db.RefreshTokens
@@ -180,6 +184,7 @@ namespace TaskManager.Api.Controllers
 
         /// <summary>Logout (revoke refresh token)</summary>
         [HttpPost("logout")]
+        [EnableRateLimiting("AuthSoft")]
         public async Task<IActionResult> Logout([FromBody] string refreshToken)
         {
             var stored = await _db.RefreshTokens

@@ -15,8 +15,22 @@ using Microsoft.AspNetCore.Authorization;
 using TaskManager.Api.Authorization.Handlers;
 using TaskManager.Shared.Security;
 using Microsoft.AspNetCore.Authentication.JwtBearer;
+using Microsoft.AspNetCore.RateLimiting;
+using System.Threading.RateLimiting;
+using TaskManager.Api.Health;
+using Microsoft.AspNetCore.HttpLogging;
+using System.Diagnostics;
+using System.Security.Claims;
 
 var builder = WebApplication.CreateBuilder(args);
+
+// Logging: enable scopes and structured console output
+builder.Logging.AddSimpleConsole(options =>
+{
+    options.IncludeScopes = true;
+    options.SingleLine = true;
+    options.TimestampFormat = "yyyy-MM-ddTHH:mm:ss.fffZ ";
+});
 
 // Controllers
 builder.Services.AddControllers();
@@ -128,6 +142,52 @@ builder.Services.AddScoped<IAuthorizationHandler, TaskWriteHandler>();
 
 builder.Services.AddScoped<TaskManager.Api.Services.IJwtTokenService, TaskManager.Api.Services.JwtTokenService>();
 builder.Services.AddScoped<ITeamService, TeamService>();
+builder.Services.AddScoped<IDatabaseHealthProbe, EfDatabaseHealthProbe>();
+
+builder.Services.AddRateLimiter(options =>
+{
+    options.RejectionStatusCode = StatusCodes.Status429TooManyRequests;
+
+    options.AddPolicy("AuthTight", context =>
+    {
+        var partitionKey = context.User?.FindFirst(System.Security.Claims.ClaimTypes.NameIdentifier)?.Value
+                           ?? context.Request.Headers["X-Test-UserId"].FirstOrDefault()
+                           ?? context.Connection.RemoteIpAddress?.ToString()
+                           ?? "anonymous";
+
+        return RateLimitPartition.GetFixedWindowLimiter(partitionKey, _ => new FixedWindowRateLimiterOptions
+        {
+            PermitLimit = 5,
+            Window = TimeSpan.FromMinutes(1),
+            QueueLimit = 0,
+            QueueProcessingOrder = QueueProcessingOrder.OldestFirst
+        });
+    });
+
+    options.AddPolicy("AuthSoft", context =>
+    {
+        var partitionKey = context.User?.FindFirst(System.Security.Claims.ClaimTypes.NameIdentifier)?.Value
+                           ?? context.Request.Headers["X-Test-UserId"].FirstOrDefault()
+                           ?? context.Connection.RemoteIpAddress?.ToString()
+                           ?? "anonymous";
+
+        return RateLimitPartition.GetFixedWindowLimiter(partitionKey, _ => new FixedWindowRateLimiterOptions
+        {
+            PermitLimit = 20,
+            Window = TimeSpan.FromMinutes(1),
+            QueueLimit = 0,
+            QueueProcessingOrder = QueueProcessingOrder.OldestFirst
+        });
+    });
+});
+
+builder.Services.AddHttpLogging(options =>
+{
+    options.LoggingFields = HttpLoggingFields.RequestMethod
+                            | HttpLoggingFields.RequestPath
+                            | HttpLoggingFields.ResponseStatusCode
+                            | HttpLoggingFields.Duration;
+});
 
 // CORS
 var allowedOrigins = builder.Configuration.GetSection("AllowedCorsOrigins").Get<string[]>() ?? Array.Empty<string>();
@@ -179,10 +239,31 @@ if (!disableHttps)
     app.UseHttpsRedirection();
 }
 
+app.UseHttpLogging();
+
+// Correlation/trace id propagation
+app.Use(async (context, next) =>
+{
+    var traceId = Activity.Current?.Id ?? context.TraceIdentifier;
+    context.Response.Headers["X-Trace-Id"] = traceId;
+
+    var loggerFactory = context.RequestServices.GetRequiredService<ILoggerFactory>();
+    using (loggerFactory.CreateLogger("RequestScope").BeginScope(new Dictionary<string, object?>
+    {
+        ["TraceId"] = traceId,
+        ["UserId"] = context.User?.FindFirst(ClaimTypes.NameIdentifier)?.Value,
+        ["SubscriptionId"] = context.User?.FindFirst("subscription_id")?.Value
+    }))
+    {
+        await next();
+    }
+});
+
 app.UseCors("FrontendDev");
 
 app.UseAuthentication();   // must be called before UseAuthorization
 app.UseAuthorization();
+app.UseRateLimiter();
 
 app.MapControllers();
 
