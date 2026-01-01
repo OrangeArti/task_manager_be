@@ -23,5 +23,8 @@ namespace TaskManager.Api.Dtos
         public string? ProblemDescription { get; set; }
         public string? ProblemReporterId { get; set; }
         public DateTime? ProblemReportedAt { get; set; }
+
+        public string? FinishedByUserId { get; set; }
+        public string? CompletionComment { get; set; }
     }
 }

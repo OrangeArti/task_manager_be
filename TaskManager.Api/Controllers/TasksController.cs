@@ -52,7 +52,9 @@ namespace TaskManager.Api.Controllers
             IsProblem = t.IsProblem,
             ProblemDescription = t.ProblemDescription,
             ProblemReporterId = t.ProblemReporterId,
-            ProblemReportedAt = t.ProblemReportedAt
+            ProblemReportedAt = t.ProblemReportedAt,
+            FinishedByUserId = t.FinishedByUserId,
+            CompletionComment = t.CompletionComment
         };
 
         private static TaskItemDto ToDto(TaskItem entity) => new TaskItemDto
@@ -72,7 +74,9 @@ namespace TaskManager.Api.Controllers
             IsProblem = entity.IsProblem,
             ProblemDescription = entity.ProblemDescription,
             ProblemReporterId = entity.ProblemReporterId,
-            ProblemReportedAt = entity.ProblemReportedAt
+            ProblemReportedAt = entity.ProblemReportedAt,
+            FinishedByUserId = entity.FinishedByUserId,
+            CompletionComment = entity.CompletionComment
         };
 
 
@@ -435,6 +439,18 @@ namespace TaskManager.Api.Controllers
                 return NoContent(); // idempotent response — nothing changed
 
             entity.IsCompleted = newValue;
+
+            if (newValue)
+            {
+                entity.FinishedByUserId = currentUserId;
+                entity.CompletionComment = request.CompletionComment?.Trim();
+            }
+            else
+            {
+                entity.FinishedByUserId = null;
+                entity.CompletionComment = null;
+            }
+
             await _db.SaveChangesAsync();
 
             return Ok(ToDto(entity));
@@ -776,6 +792,81 @@ namespace TaskManager.Api.Controllers
             entity.ProblemDescription = null;
             entity.ProblemReporterId = null;
             entity.ProblemReportedAt = null;
+
+            await _db.SaveChangesAsync();
+
+            return Ok(ToDto(entity));
+        }
+
+        /// <summary>
+        /// Assigns the task to the current user (self-assignment).
+        /// </summary>
+        /// <remarks>
+        /// Allows a user to claim a task that is currently unassigned (or assigned to themselves).
+        /// Requires the task to be visible to the user.
+        /// </remarks>
+        /// <response code="200">Task assigned to self.</response>
+        /// <response code="400">Task already assigned to someone else.</response>
+        /// <response code="403">Task not visible or not allowed to claim.</response>
+        /// <response code="404">Task not found.</response>
+        [HttpPatch("{id:int}/assign-self")]
+        [ProducesResponseType(StatusCodes.Status200OK)]
+        [ProducesResponseType(StatusCodes.Status400BadRequest)]
+        [ProducesResponseType(StatusCodes.Status403Forbidden)]
+        [ProducesResponseType(StatusCodes.Status404NotFound)]
+        public async Task<IActionResult> AssignSelf([FromRoute] int id)
+        {
+            var currentUserId = GetCurrentUserId();
+            if (string.IsNullOrEmpty(currentUserId)) return Unauthorized();
+
+            var entity = await _db.Tasks.FirstOrDefaultAsync(t => t.Id == id);
+            if (entity is null)
+                return NotFound(new { message = $"Task #{id} not found" });
+
+            // 1. Check visibility (same logic as GetById)
+            var isAdmin = User.IsInRole("Admin");
+            var isSubscriptionOwner = User.IsInRole("SubscriptionOwner");
+            var userTeamId = await GetUserTeamIdAsync();
+
+            if (!isAdmin)
+            {
+                // Basic visibility check
+                bool isVisible =
+                    entity.CreatedById == currentUserId ||
+                    entity.AssignedToId == currentUserId ||
+                     (
+                        entity.VisibilityScope == TaskVisibilityScopes.TeamPublic &&
+                        (
+                            (userTeamId.HasValue && entity.TeamId.HasValue && entity.TeamId == userTeamId.Value) ||
+                            isSubscriptionOwner
+                        )
+                    ) ||
+                    (
+                        entity.VisibilityScope == TaskVisibilityScopes.GlobalPublic
+                    );
+
+                if (!isVisible)
+                    return Forbid();
+            }
+
+            // 2. Assignment Logic
+            // If already assigned to CURRENT USER -> Success (Idempotent)
+            if (entity.AssignedToId == currentUserId)
+            {
+                return Ok(ToDto(entity));
+            }
+
+            // If assigned to SOMEONE ELSE -> Fail
+            if (!string.IsNullOrEmpty(entity.AssignedToId))
+            {
+                return BadRequest(new { message = "Task is already assigned to another user." });
+            }
+
+            // If Unassigned -> Claim it
+            entity.AssignedToId = currentUserId;
+            // Ensure visibility of assignee is set to true by default for self-assignment, 
+            // or keep existing logic. Let's set it to true as per general expectation.
+            entity.IsAssigneeVisibleToOthers = true;
 
             await _db.SaveChangesAsync();
 

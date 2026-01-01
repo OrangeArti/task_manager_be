@@ -13,5 +13,7 @@ namespace TaskManager.Api.Dtos
         /// </summary>
         [Required]
         public bool? IsCompleted { get; set; }
+
+        public string? CompletionComment { get; set; }
     }
 }
