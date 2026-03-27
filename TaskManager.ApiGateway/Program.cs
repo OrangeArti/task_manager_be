@@ -60,12 +60,13 @@ apiGroup.MapGet("/health", GetAggregatedHealth)
 MapServiceProxy(apiGroup, "tasks", "Tasks");
 MapServiceProxy(apiGroup, "teams", "Teams");
 MapServiceProxy(apiGroup, "users", "Users");
+MapServiceProxy(apiGroup, "auth", "Auth");
 
 app.Run();
 
 static void MapServiceProxy(RouteGroupBuilder apiGroup, string serviceKey, string tag)
 {
-    var methods = new[] { "GET", "POST", "PUT", "PATCH", "DELETE", "OPTIONS" };
+    var methods = new[] { "GET", "POST", "PUT", "PATCH", "DELETE" };
 
     apiGroup.MapMethods($"/{serviceKey}", methods,
             (HttpContext context,
@@ -102,7 +103,8 @@ static async Task ProxyAsync(
         return;
     }
 
-    var targetUri = BuildTargetUri(service.BaseUrl, path, context.Request.QueryString);
+    var targetPath = CombineUri(service.ForwardPath, path);
+    var targetUri = BuildTargetUri(service.BaseUrl, targetPath, context.Request.QueryString);
     using var requestMessage = new HttpRequestMessage(new HttpMethod(context.Request.Method), targetUri);
 
     var contentHeaders = new List<KeyValuePair<string, StringValues>>();
@@ -306,6 +308,7 @@ internal sealed class GatewayServiceOptions
 {
     public string Name { get; set; } = string.Empty;
     public string BaseUrl { get; set; } = string.Empty;
+    public string ForwardPath { get; set; } = string.Empty;
     public string HealthPath { get; set; } = "/health";
 }
 
