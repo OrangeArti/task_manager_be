@@ -42,6 +42,8 @@
     {
       "username": "admin@taskmanager.local",
       "email": "admin@taskmanager.local",
+      "firstName": "Admin",
+      "lastName": "User",
       "enabled": true,
       "emailVerified": true,
       "credentials": [{ "type": "password", "value": "Admin123!", "temporary": false }],
@@ -50,6 +52,8 @@
     {
       "username": "lead@taskmanager.local",
       "email": "lead@taskmanager.local",
+      "firstName": "Team",
+      "lastName": "Lead",
       "enabled": true,
       "emailVerified": true,
       "credentials": [{ "type": "password", "value": "Lead123!", "temporary": false }],
@@ -58,6 +62,8 @@
     {
       "username": "user@taskmanager.local",
       "email": "user@taskmanager.local",
+      "firstName": "Regular",
+      "lastName": "User",
       "enabled": true,
       "emailVerified": true,
       "credentials": [{ "type": "password", "value": "User123!", "temporary": false }],
