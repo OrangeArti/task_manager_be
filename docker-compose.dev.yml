@@ -11,10 +11,56 @@ services:
       MSSQL_SA_PASSWORD: "${MSSQL_SA_PASSWORD}"
     volumes:
       - mssql_data:/var/opt/mssql
+    networks:
+      - taskmanager-net
     healthcheck:
       test: /opt/mssql-tools18/bin/sqlcmd -C -S localhost -U sa -P "$${MSSQL_SA_PASSWORD}" -Q "SELECT 1" || exit 1
       interval: 10s
       timeout: 5s
+      retries: 10
+
+  keycloak-db:
+    image: postgres:16
+    container_name: keycloak_db
+    environment:
+      POSTGRES_DB: keycloak
+      POSTGRES_USER: keycloak
+      POSTGRES_PASSWORD: "${KC_DB_PASSWORD:-keycloak_dev_password}"
+    volumes:
+      - keycloak_db_data:/var/lib/postgresql/data
+    networks:
+      - taskmanager-net
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U keycloak"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+
+  keycloak:
+    image: quay.io/keycloak/keycloak:26.5.6
+    container_name: keycloak
+    depends_on:
+      keycloak-db:
+        condition: service_healthy
+    command: start-dev --import-realm
+    environment:
+      KC_DB: postgres
+      KC_DB_URL: jdbc:postgresql://keycloak-db:5432/keycloak
+      KC_DB_USERNAME: keycloak
+      KC_DB_PASSWORD: "${KC_DB_PASSWORD:-keycloak_dev_password}"
+      KC_BOOTSTRAP_ADMIN_USERNAME: "${KC_ADMIN_USER:-admin}"
+      KC_BOOTSTRAP_ADMIN_PASSWORD: "${KC_ADMIN_PASSWORD:-admin}"
+      KC_HTTP_PORT: 8180
+    volumes:
+      - ./keycloak:/opt/keycloak/data/import:ro
+    ports:
+      - "8180:8180"
+    networks:
+      - taskmanager-net
+    healthcheck:
+      test: ["CMD-SHELL", "curl -sf http://localhost:8180/health/ready || exit 1"]
+      interval: 15s
+      timeout: 10s
       retries: 10
 
   tasks-service:
@@ -25,6 +71,8 @@ services:
     depends_on:
       mssql:
         condition: service_healthy
+      keycloak:
+        condition: service_healthy
     environment:
       ASPNETCORE_ENVIRONMENT: "Development"
       ASPNETCORE_URLS: "http://+:8080"
@@ -33,9 +81,9 @@ services:
       # connection string inside the compose network
       ConnectionStrings__DefaultConnection: "Server=mssql,1433;Database=TaskManagerDb;User Id=sa;Password=${MSSQL_SA_PASSWORD};Encrypt=False;TrustServerCertificate=True"
 
-      # JWT for the container (double underscores = colon in IConfiguration)
-      Jwt__Key: "${JWT_KEY}"
-      Jwt__Issuer: "${JWT_ISSUER}"
+      # Keycloak OIDC configuration
+      Keycloak__realm: "task-manager"
+      Keycloak__auth-server-url: "http://keycloak:8180"
 
       # Default admin credentials for the container
       Admin__Email: "${Admin__Email}"
@@ -43,6 +91,8 @@ services:
       Admin__DisplayName: "${Admin__DisplayName}"
     ports:
       - "8081:8080"
+    networks:
+      - taskmanager-net
     restart: unless-stopped
 
   teams-service:
@@ -59,6 +109,8 @@ services:
       Jwt__Issuer: "${JWT_ISSUER}"
     ports:
       - "8082:8080"
+    networks:
+      - taskmanager-net
     restart: unless-stopped
 
   users-service:
@@ -75,6 +127,8 @@ services:
       Jwt__Issuer: "${JWT_ISSUER}"
     ports:
       - "8083:8080"
+    networks:
+      - taskmanager-net
     restart: unless-stopped
 
   api-gateway:
@@ -97,8 +151,16 @@ services:
       Gateway__Services__users__BaseUrl: "http://users-service:8080"
     ports:
       - "8080:8080"
+    networks:
+      - taskmanager-net
     restart: unless-stopped
+
+networks:
+  taskmanager-net:
+    name: taskmanager-net
 
 volumes:
   mssql_data:
     name: mssql_data
+  keycloak_db_data:
+    name: keycloak_db_data

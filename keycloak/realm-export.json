@@ -1,0 +1,67 @@
+{
+  "realm": "task-manager",
+  "enabled": true,
+  "displayName": "Task Manager",
+  "sslRequired": "none",
+  "registrationAllowed": false,
+  "loginWithEmailAllowed": true,
+  "duplicateEmailsAllowed": false,
+  "resetPasswordAllowed": true,
+  "editUsernameAllowed": false,
+  "bruteForceProtected": false,
+  "ssoSessionIdleTimeout": 1800,
+  "ssoSessionMaxLifespan": 28800,
+  "accessTokenLifespan": 300,
+  "roles": {
+    "realm": [
+      { "name": "Admin", "composite": false, "clientRole": false, "containerId": "task-manager" },
+      { "name": "TeamLead", "composite": false, "clientRole": false, "containerId": "task-manager" },
+      { "name": "RegularUser", "composite": false, "clientRole": false, "containerId": "task-manager" },
+      { "name": "SubscriptionOwner", "composite": false, "clientRole": false, "containerId": "task-manager" }
+    ]
+  },
+  "clients": [
+    {
+      "clientId": "task-manager-frontend",
+      "name": "Task Manager Frontend",
+      "enabled": true,
+      "publicClient": true,
+      "protocol": "openid-connect",
+      "standardFlowEnabled": true,
+      "implicitFlowEnabled": false,
+      "directAccessGrantsEnabled": false,
+      "serviceAccountsEnabled": false,
+      "redirectUris": ["http://localhost:4200/*"],
+      "webOrigins": ["http://localhost:4200"],
+      "attributes": {
+        "pkce.code.challenge.method": "S256"
+      }
+    }
+  ],
+  "users": [
+    {
+      "username": "admin@taskmanager.local",
+      "email": "admin@taskmanager.local",
+      "enabled": true,
+      "emailVerified": true,
+      "credentials": [{ "type": "password", "value": "Admin123!", "temporary": false }],
+      "realmRoles": ["Admin", "RegularUser"]
+    },
+    {
+      "username": "lead@taskmanager.local",
+      "email": "lead@taskmanager.local",
+      "enabled": true,
+      "emailVerified": true,
+      "credentials": [{ "type": "password", "value": "Lead123!", "temporary": false }],
+      "realmRoles": ["TeamLead", "RegularUser"]
+    },
+    {
+      "username": "user@taskmanager.local",
+      "email": "user@taskmanager.local",
+      "enabled": true,
+      "emailVerified": true,
+      "credentials": [{ "type": "password", "value": "User123!", "temporary": false }],
+      "realmRoles": ["RegularUser"]
+    }
+  ]
+}
