@@ -1,14 +1,11 @@
 using System.ComponentModel.DataAnnotations;
 using System.Linq;
-using System.Text;
 using Microsoft.AspNetCore.Http;
-using Microsoft.AspNetCore.Authentication.JwtBearer;
-using Microsoft.IdentityModel.Tokens;
 using Microsoft.OpenApi.Models;
+using Keycloak.AuthServices.Authentication;
 using TaskManager.Shared.Dtos.Teams;
 using TaskManager.Shared.Dtos.Users;
 using TaskManager.Shared.Health;
-using TaskManager.Shared.Security;
 
 var builder = WebApplication.CreateBuilder(args);
 
@@ -51,25 +48,10 @@ builder.Services.AddSwaggerGen(options =>
     });
 });
 
-builder.Services.Configure<JwtOptions>(builder.Configuration.GetSection(JwtOptions.SectionName));
-var jwtOptions = builder.Configuration.GetJwtOptions();
-
-builder.Services
-    .AddAuthentication(JwtBearerDefaults.AuthenticationScheme)
-    .AddJwtBearer(options =>
-    {
-        options.TokenValidationParameters = new TokenValidationParameters
-        {
-            ValidateIssuer = true,
-            ValidateAudience = true,
-            ValidateLifetime = true,
-            ValidateIssuerSigningKey = true,
-            ValidIssuer = jwtOptions.Issuer,
-            ValidAudience = jwtOptions.Audience,
-            IssuerSigningKey = new SymmetricSecurityKey(Encoding.UTF8.GetBytes(jwtOptions.Key)),
-            ClockSkew = TimeSpan.Zero
-        };
-    });
+builder.Services.AddKeycloakWebApiAuthentication(builder.Configuration, options =>
+{
+    options.RequireHttpsMetadata = false; // dev only
+});
 
 builder.Services.AddAuthorization();
 

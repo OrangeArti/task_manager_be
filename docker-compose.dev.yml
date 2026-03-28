@@ -100,13 +100,16 @@ services:
       context: .
       dockerfile: TaskManager.ServiceStub/Dockerfile
     container_name: taskmanager_teams
+    depends_on:
+      keycloak:
+        condition: service_healthy
     environment:
       ASPNETCORE_ENVIRONMENT: "Development"
       ASPNETCORE_URLS: "http://+:8080"
       SERVICE_NAME: "teams-service"
       SERVICE_KIND: "teams"
-      Jwt__Key: "${JWT_KEY}"
-      Jwt__Issuer: "${JWT_ISSUER}"
+      Keycloak__realm: "task-manager"
+      Keycloak__auth-server-url: "http://keycloak:8180"
     ports:
       - "8082:8080"
     networks:
@@ -118,13 +121,16 @@ services:
       context: .
       dockerfile: TaskManager.ServiceStub/Dockerfile
     container_name: taskmanager_users
+    depends_on:
+      keycloak:
+        condition: service_healthy
     environment:
       ASPNETCORE_ENVIRONMENT: "Development"
       ASPNETCORE_URLS: "http://+:8080"
       SERVICE_NAME: "users-service"
       SERVICE_KIND: "users"
-      Jwt__Key: "${JWT_KEY}"
-      Jwt__Issuer: "${JWT_ISSUER}"
+      Keycloak__realm: "task-manager"
+      Keycloak__auth-server-url: "http://keycloak:8180"
     ports:
       - "8083:8080"
     networks:
