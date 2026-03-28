@@ -12,5 +12,12 @@ namespace TaskManager.Api.Models
         public Team? Team { get; set; }
 
         public string? SubscriptionId { get; set; }
+
+        /// <summary>
+        /// The Keycloak sub (subject) UUID for this user.
+        /// Used to look up the ApplicationUser from a Keycloak JWT.
+        /// Nullable: existing users have no Keycloak subject until they log in via Keycloak.
+        /// </summary>
+        public string? KeycloakSubject { get; set; }
     }
 }

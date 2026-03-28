@@ -54,6 +54,10 @@ namespace TaskManager.Api.Data
 				e.HasIndex(t => t.IsProblem);
 			});
 
+			modelBuilder.Entity<ApplicationUser>()
+				.HasIndex(u => u.KeycloakSubject)
+				.IsUnique(false);
+
 			modelBuilder.Entity<Team>(entity =>
 			{
 				entity.HasKey(t => t.Id);
