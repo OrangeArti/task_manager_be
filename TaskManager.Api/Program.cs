@@ -101,6 +101,22 @@ builder.Services
 
 builder.Services.AddHttpContextAccessor();
 
+// Suppress Identity cookie redirects — this is an API, not a browser app.
+// Without this, unauthenticated requests get a 302 → /Account/Login instead of 401.
+builder.Services.ConfigureApplicationCookie(options =>
+{
+    options.Events.OnRedirectToLogin = ctx =>
+    {
+        ctx.Response.StatusCode = StatusCodes.Status401Unauthorized;
+        return Task.CompletedTask;
+    };
+    options.Events.OnRedirectToAccessDenied = ctx =>
+    {
+        ctx.Response.StatusCode = StatusCodes.Status403Forbidden;
+        return Task.CompletedTask;
+    };
+});
+
 // Keycloak OIDC authentication — validates RS256 tokens via JWKS discovery
 builder.Services.AddKeycloakWebApiAuthentication(builder.Configuration, options =>
 {
