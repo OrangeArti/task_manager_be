@@ -40,7 +40,8 @@ namespace TaskManager.Tests
                         UserName = "user2",
                         Email = "user2@test.local",
                         TeamId = 1,
-                        SubscriptionId = "sub-1"
+                        SubscriptionId = "sub-1",
+                        KeycloakSubject = "user2"
                     });
                     await db.SaveChangesAsync();
                 }
@@ -85,7 +86,8 @@ namespace TaskManager.Tests
                         UserName = "user3",
                         Email = "user3@test.local",
                         TeamId = 1,
-                        SubscriptionId = "sub-1"
+                        SubscriptionId = "sub-1",
+                        KeycloakSubject = "user3"
                     });
                     await db.SaveChangesAsync();
                 }

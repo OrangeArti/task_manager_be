@@ -77,6 +77,7 @@ namespace TaskManager.Tests
                         NormalizedEmail = email.ToUpperInvariant(),
                         TeamId = teamId,
                         SubscriptionId = subscriptionId,
+                        KeycloakSubject = id, // matches the "sub" claim emitted by TestAuthHandler
                         SecurityStamp = Guid.NewGuid().ToString(),
                         ConcurrencyStamp = Guid.NewGuid().ToString()
                     });
@@ -84,6 +85,8 @@ namespace TaskManager.Tests
 
                 EnsureUser("user1", "user1@test.local", 1);
                 EnsureUser("lead1", "lead1@test.local", 1);
+                EnsureUser("user2", "user2@test.local", 1);
+                EnsureUser("sub-owner", "sub-owner@test.local", 1);
 
                 db.SaveChanges();
             });

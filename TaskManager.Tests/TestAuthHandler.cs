@@ -40,6 +40,7 @@ public class TestAuthHandler : AuthenticationHandler<AuthenticationSchemeOptions
         var claims = new List<Claim>
         {
             new Claim(ClaimTypes.NameIdentifier, userId),
+            new Claim("sub", userId), // mirrors the Keycloak sub claim used by GetCurrentUserDbIdAsync()
         };
 
         if (!string.IsNullOrEmpty(role))

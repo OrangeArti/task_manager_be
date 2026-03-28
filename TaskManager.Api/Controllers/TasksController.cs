@@ -27,12 +27,18 @@ namespace TaskManager.Api.Controllers
         }
 
         /// <summary>
-        /// Returns the current user identifier from claims (NameIdentifier or sub).
+        /// Looks up the ApplicationUser.Id by matching the Keycloak sub claim
+        /// against the KeycloakSubject bridge column. Returns null if not found.
         /// </summary>
-        private string? GetCurrentUserId()
+        private async Task<string?> GetCurrentUserDbIdAsync()
         {
-            return User.FindFirstValue(System.Security.Claims.ClaimTypes.NameIdentifier)
-                ?? User.FindFirstValue("sub");
+            var sub = User.FindFirstValue("sub");
+            if (sub is null) return null;
+
+            return await _db.Users
+                .Where(u => u.KeycloakSubject == sub)
+                .Select(u => u.Id)
+                .FirstOrDefaultAsync();
         }
 
         private static readonly Expression<Func<TaskItem, TaskItemDto>> TaskToDtoProjection = t => new TaskItemDto
@@ -82,7 +88,7 @@ namespace TaskManager.Api.Controllers
 
         private async Task<int?> GetUserTeamIdAsync()
         {
-            var userId = GetCurrentUserId();
+            var userId = await GetCurrentUserDbIdAsync();
             if (string.IsNullOrEmpty(userId)) return null;
 
             var teamId = await _db.Users.AsNoTracking()
@@ -110,7 +116,7 @@ namespace TaskManager.Api.Controllers
             var search = query.NormalizeSearch();
             var requestedScope = TaskVisibilityScopes.Normalize(query.NormalizeVisibilityScope());
 
-            var userId = GetCurrentUserId();
+            var userId = await GetCurrentUserDbIdAsync();
             if (string.IsNullOrEmpty(userId))
                 return Unauthorized();
 
@@ -211,7 +217,7 @@ namespace TaskManager.Api.Controllers
                 return ValidationProblem(ModelState);
             }
 
-            var userId = GetCurrentUserId();
+            var userId = await GetCurrentUserDbIdAsync();
             if (string.IsNullOrEmpty(userId))
                 return Unauthorized();
 
@@ -359,7 +365,7 @@ namespace TaskManager.Api.Controllers
         public async Task<ActionResult<TaskItemDto>> GetById([FromRoute] int id)
         {
             // obtain current user id (two-claim lookup)
-            var currentUserId = GetCurrentUserId();
+            var currentUserId = await GetCurrentUserDbIdAsync();
             if (string.IsNullOrEmpty(currentUserId))
                 return Unauthorized();
 
@@ -422,7 +428,7 @@ namespace TaskManager.Api.Controllers
             if (entity is null)
                 return NotFound(new { message = $"Task #{id} not found" });
 
-            var currentUserId = GetCurrentUserId();
+            var currentUserId = await GetCurrentUserDbIdAsync();
             if (string.IsNullOrEmpty(currentUserId)) return Unauthorized();
 
             var isAdmin = User.IsInRole("Admin");
@@ -480,7 +486,7 @@ namespace TaskManager.Api.Controllers
             if (entity is null)
                 return NotFound(new { message = $"Task #{id} not found" });
 
-            var currentUserId = GetCurrentUserId();
+            var currentUserId = await GetCurrentUserDbIdAsync();
             if (string.IsNullOrEmpty(currentUserId)) return Unauthorized();
 
             var isAdmin = User.IsInRole("Admin");
@@ -680,7 +686,7 @@ namespace TaskManager.Api.Controllers
             if (entity is null)
                 return NotFound(new { message = $"Task #{id} not found" });
 
-            var currentUserId = GetCurrentUserId();
+            var currentUserId = await GetCurrentUserDbIdAsync();
             if (string.IsNullOrEmpty(currentUserId)) return Unauthorized();
 
             var isAdmin = User.IsInRole("Admin");
@@ -719,7 +725,7 @@ namespace TaskManager.Api.Controllers
             if (!ModelState.IsValid)
                 return ValidationProblem(ModelState);
 
-            var currentUserId = GetCurrentUserId();
+            var currentUserId = await GetCurrentUserDbIdAsync();
             if (string.IsNullOrEmpty(currentUserId))
                 return Unauthorized();
 
@@ -768,7 +774,7 @@ namespace TaskManager.Api.Controllers
         [ProducesResponseType(StatusCodes.Status404NotFound)]
         public async Task<IActionResult> UnmarkProblem([FromRoute] int id)
         {
-            var currentUserId = GetCurrentUserId();
+            var currentUserId = await GetCurrentUserDbIdAsync();
             if (string.IsNullOrEmpty(currentUserId))
                 return Unauthorized();
 
@@ -816,7 +822,7 @@ namespace TaskManager.Api.Controllers
         [ProducesResponseType(StatusCodes.Status404NotFound)]
         public async Task<IActionResult> AssignSelf([FromRoute] int id)
         {
-            var currentUserId = GetCurrentUserId();
+            var currentUserId = await GetCurrentUserDbIdAsync();
             if (string.IsNullOrEmpty(currentUserId)) return Unauthorized();
 
             var entity = await _db.Tasks.FirstOrDefaultAsync(t => t.Id == id);

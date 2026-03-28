@@ -339,15 +339,18 @@ namespace TaskManager.Tests
                     Email = email,
                     NormalizedEmail = email.ToUpperInvariant(),
                     TeamId = teamId,
+                    KeycloakSubject = id, // matches the "sub" claim emitted by TestAuthHandler
                     SecurityStamp = Guid.NewGuid().ToString(),
                     ConcurrencyStamp = Guid.NewGuid().ToString()
                 };
                 await userManager.CreateAsync(user, "Str0ngP@ss!");
             }
-            else if (teamId.HasValue && user.TeamId != teamId)
+            else
             {
-                user.TeamId = teamId;
-                await userManager.UpdateAsync(user);
+                bool dirty = false;
+                if (teamId.HasValue && user.TeamId != teamId) { user.TeamId = teamId; dirty = true; }
+                if (user.KeycloakSubject != id) { user.KeycloakSubject = id; dirty = true; }
+                if (dirty) await userManager.UpdateAsync(user);
             }
 
             return user;
