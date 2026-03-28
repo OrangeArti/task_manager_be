@@ -25,6 +25,9 @@ namespace TaskManager.Api.Models
         public int? TeamId { get; set; }
         public Team? Team { get; set; }
 
+        public int? GroupId { get; set; }
+        public Group? Group { get; set; }
+
         public bool IsProblem { get; set; } = false;
         public string? ProblemDescription { get; set; }
         public string? ProblemReporterId { get; set; }
