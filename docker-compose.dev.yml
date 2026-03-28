@@ -58,10 +58,10 @@ services:
     networks:
       - taskmanager-net
     healthcheck:
-      test: ["CMD-SHELL", "curl -sf http://localhost:8180/health/ready || exit 1"]
-      interval: 15s
-      timeout: 10s
-      retries: 10
+      test: ["CMD", "bash", "-c", "exec 3<>/dev/tcp/localhost/8180"]
+      interval: 10s
+      timeout: 5s
+      retries: 15
 
   tasks-service:
     build:
