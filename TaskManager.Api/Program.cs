@@ -5,22 +5,21 @@ using Microsoft.EntityFrameworkCore;
 using TaskManager.Api.Data;
 using System.Reflection;
 using Microsoft.AspNetCore.Identity;
-using Microsoft.IdentityModel.Tokens;
-using System.Text;
 using TaskManager.Api.Models;
 using Microsoft.OpenApi.Models; // required for Swagger security
 using TaskManager.Api;
 using TaskManager.Api.Services;
 using Microsoft.AspNetCore.Authorization;
 using TaskManager.Api.Authorization.Handlers;
-using TaskManager.Shared.Security;
-using Microsoft.AspNetCore.Authentication.JwtBearer;
 using Microsoft.AspNetCore.RateLimiting;
 using System.Threading.RateLimiting;
 using TaskManager.Api.Health;
 using Microsoft.AspNetCore.HttpLogging;
 using System.Diagnostics;
 using System.Security.Claims;
+using Keycloak.AuthServices.Authentication;
+using TaskManager.Api.Auth;
+using Microsoft.AspNetCore.Authentication;
 
 var builder = WebApplication.CreateBuilder(args);
 
@@ -102,32 +101,14 @@ builder.Services
 
 builder.Services.AddHttpContextAccessor();
 
-// JWT auth shared configuration
-builder.Services
-    .Configure<JwtOptions>(builder.Configuration.GetSection(JwtOptions.SectionName));
+// Keycloak OIDC authentication — validates RS256 tokens via JWKS discovery
+builder.Services.AddKeycloakWebApiAuthentication(builder.Configuration, options =>
+{
+    options.RequireHttpsMetadata = false; // dev only — remove for production
+});
 
-var jwtOptions = builder.Configuration.GetJwtOptions();
-
-builder.Services
-    .AddAuthentication(options =>
-    {
-        options.DefaultAuthenticateScheme = JwtBearerDefaults.AuthenticationScheme;
-        options.DefaultChallengeScheme = JwtBearerDefaults.AuthenticationScheme;
-    })
-    .AddJwtBearer(options =>
-    {
-        options.TokenValidationParameters = new TokenValidationParameters
-        {
-            ValidateIssuer = true,
-            ValidateAudience = true,
-            ValidateLifetime = true,
-            ValidateIssuerSigningKey = true,
-            ValidIssuer = jwtOptions.Issuer,
-            ValidAudience = jwtOptions.Audience,
-            IssuerSigningKey = new SymmetricSecurityKey(Encoding.UTF8.GetBytes(jwtOptions.Key)),
-            ClockSkew = TimeSpan.Zero
-        };
-    });
+// Map realm_access.roles JWT claim to ClaimTypes.Role for User.IsInRole() support
+builder.Services.AddTransient<IClaimsTransformation, KeycloakClaimsTransformer>();
 
 // Register Authorization (must run before UseAuthorization)
 builder.Services.AddAuthorization(
@@ -140,7 +121,6 @@ builder.Services.AddAuthorization(
 builder.Services.AddScoped<IAuthorizationHandler, TaskReadHandler>();
 builder.Services.AddScoped<IAuthorizationHandler, TaskWriteHandler>();
 
-builder.Services.AddScoped<TaskManager.Api.Services.IJwtTokenService, TaskManager.Api.Services.JwtTokenService>();
 builder.Services.AddScoped<ITeamService, TeamService>();
 builder.Services.AddScoped<IDatabaseHealthProbe, EfDatabaseHealthProbe>();
 
@@ -214,12 +194,6 @@ using (var scope = app.Services.CreateScope())
     if (!builder.Environment.IsEnvironment("Testing"))
     {
         await db.Database.MigrateAsync();
-    }
-
-    // Seed roles and default admin
-    if (!builder.Environment.IsEnvironment("Testing"))
-    {
-         await IdentitySeeder.SeedAsync(app.Services, app.Configuration);
     }
 }
 
