@@ -19,6 +19,8 @@ namespace TaskManager.Api.Data
 		public DbSet<Group> Groups => Set<Group>();
 		public DbSet<GroupMember> GroupMembers => Set<GroupMember>();
 		public DbSet<Comment> Comments => Set<Comment>();
+		public DbSet<OrgMember> OrgMembers => Set<OrgMember>();
+		public DbSet<OrgInvitation> OrgInvitations => Set<OrgInvitation>();
 
 		protected override void OnModelCreating(ModelBuilder modelBuilder)
 		{
@@ -159,6 +161,38 @@ namespace TaskManager.Api.Data
                     .OnDelete(DeleteBehavior.Restrict);
                 c.HasIndex(x => x.TaskId);
                 c.HasIndex(x => x.AuthorId);
+            });
+
+            // OrgMember
+            modelBuilder.Entity<OrgMember>(om =>
+            {
+                om.HasKey(x => x.Id);
+                om.Property(x => x.UserId).HasMaxLength(450).IsRequired();
+                om.Property(x => x.Role).HasMaxLength(50).IsRequired();
+                om.Property(x => x.JoinedAt).HasDefaultValueSql("GETUTCDATE()");
+                om.HasOne(x => x.Organization)
+                    .WithMany()
+                    .HasForeignKey(x => x.OrganizationId)
+                    .OnDelete(DeleteBehavior.Cascade);
+                om.HasOne(x => x.User)
+                    .WithMany()
+                    .HasForeignKey(x => x.UserId)
+                    .OnDelete(DeleteBehavior.Cascade);
+                om.HasIndex(x => new { x.OrganizationId, x.UserId }).IsUnique();
+            });
+
+            // OrgInvitation
+            modelBuilder.Entity<OrgInvitation>(oi =>
+            {
+                oi.HasKey(x => x.Id);
+                oi.Property(x => x.Token).HasMaxLength(64).IsRequired();
+                oi.Property(x => x.InviteeEmail).HasMaxLength(256);
+                oi.Property(x => x.CreatedAt).HasDefaultValueSql("GETUTCDATE()");
+                oi.HasOne(x => x.Organization)
+                    .WithMany()
+                    .HasForeignKey(x => x.OrganizationId)
+                    .OnDelete(DeleteBehavior.Cascade);
+                oi.HasIndex(x => x.Token).IsUnique();
             });
 		}
 	}

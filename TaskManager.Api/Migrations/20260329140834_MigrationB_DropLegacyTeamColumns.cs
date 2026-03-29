@@ -36,8 +36,8 @@ namespace TaskManager.Api.Migrations
                         INSERT INTO Subscriptions (PlanType, OrganizationId, CreatedAt)
                         VALUES ('Free', @OrgId, GETUTCDATE());
 
-                        INSERT INTO OrgMembers (OrgId, UserId, JoinedAt)
-                        SELECT @OrgId, Id, GETUTCDATE() FROM AspNetUsers;
+                        INSERT INTO OrgMembers (OrganizationId, UserId, Role, JoinedAt)
+                        SELECT @OrgId, Id, 'Member', GETUTCDATE() FROM AspNetUsers;
 
                         INSERT INTO Groups (Name, Description, OrganizationId, CreatedAt)
                         SELECT Name, Description, @OrgId, CreatedAt FROM Teams;
