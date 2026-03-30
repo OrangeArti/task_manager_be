@@ -66,11 +66,11 @@ public class OrgsController : ControllerBase
         await _db.SaveChangesAsync();
 
         var result = new OrgDto(org.Id, org.Name, org.OwnerId, org.CreatedAt);
-        return CreatedAtAction(nameof(GetByIdAsync), new { id = org.Id }, result);
+        return CreatedAtRoute("GetOrgByIdAsync", new { id = org.Id }, result);
     }
 
     /// <summary>Gets an Organization by ID.</summary>
-    [HttpGet("{id:int}", Name = nameof(GetByIdAsync))]
+    [HttpGet("{id:int}", Name = "GetOrgByIdAsync")]
     [ProducesResponseType(StatusCodes.Status200OK)]
     [ProducesResponseType(StatusCodes.Status404NotFound)]
     public async Task<ActionResult<OrgDto>> GetByIdAsync(int id)
