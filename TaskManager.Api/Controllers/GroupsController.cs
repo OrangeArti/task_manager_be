@@ -57,7 +57,7 @@ public class GroupsController : ControllerBase
     }
 
     /// <summary>Gets a single group by ID.</summary>
-    [HttpGet("{id:int}", Name = nameof(GetByIdAsync))]
+    [HttpGet("{id:int}", Name = "GetGroupByIdAsync")]
     [ProducesResponseType(StatusCodes.Status200OK)]
     [ProducesResponseType(StatusCodes.Status404NotFound)]
     [ProducesResponseType(StatusCodes.Status401Unauthorized)]
@@ -108,7 +108,7 @@ public class GroupsController : ControllerBase
         _db.Groups.Add(group);
         await _db.SaveChangesAsync();
 
-        return CreatedAtAction(nameof(GetByIdAsync), new { orgId, id = group.Id }, ToDto(group));
+        return CreatedAtRoute("GetGroupByIdAsync", new { orgId, id = group.Id }, ToDto(group));
     }
 
     /// <summary>Updates a Group's name and/or description. Caller must be SubscriptionOwner.</summary>
