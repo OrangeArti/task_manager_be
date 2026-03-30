@@ -165,16 +165,18 @@ namespace TaskManager.Tests
                         CreatedById = "lead1",
                         VisibilityScope = TaskVisibilityScopes.TeamPublic,
                         TeamId = 1,
+                        GroupId = 1,
                         AssignedToId = "user1",
                         IsAssigneeVisibleToOthers = false
                     },
-                    // visible: team public same team
+                    // visible: team public same group
                     new TaskItem
                     {
                         Title = "team-public",
                         CreatedById = "lead1",
                         VisibilityScope = TaskVisibilityScopes.TeamPublic,
                         TeamId = 1,
+                        GroupId = 1,
                         IsAssigneeVisibleToOthers = true
                     },
                     // visible: global public
@@ -187,13 +189,14 @@ namespace TaskManager.Tests
                     },
                     // not visible: other private
                     new TaskItem { Title = "other-private", CreatedById = "user2", VisibilityScope = TaskVisibilityScopes.Private },
-                    // not visible: team public other team
+                    // not visible: team public other group (GroupId=2, user1 is only in group 1)
                     new TaskItem
                     {
                         Title = "other-team",
                         CreatedById = "user2",
                         VisibilityScope = TaskVisibilityScopes.TeamPublic,
                         TeamId = 2,
+                        GroupId = 2,
                         IsAssigneeVisibleToOthers = true
                     },
                     // not visible: hidden assignee, not creator/assignee
@@ -203,6 +206,7 @@ namespace TaskManager.Tests
                         CreatedById = "user2",
                         VisibilityScope = TaskVisibilityScopes.TeamPublic,
                         TeamId = 1,
+                        GroupId = 1,
                         AssignedToId = "user2",
                         IsAssigneeVisibleToOthers = false
                     }

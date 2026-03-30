@@ -9,7 +9,7 @@ namespace TaskManager.Api.Authorization
             string? AssignedToId,
             bool IsAssigneeVisibleToOthers,
             string VisibilityScope,
-            int? TeamId,
+            int? GroupId,
             string? ProblemReporterId,
             bool IsProblem
         );
@@ -20,7 +20,7 @@ namespace TaskManager.Api.Authorization
                 task.AssignedToId,
                 task.IsAssigneeVisibleToOthers,
                 task.VisibilityScope,
-                task.TeamId,
+                task.GroupId,
                 task.ProblemReporterId,
                 task.IsProblem
             );
@@ -28,10 +28,10 @@ namespace TaskManager.Api.Authorization
         private static bool IsPrivateAssignment(TaskAccessSnapshot task) =>
             task.AssignedToId is not null && !task.IsAssigneeVisibleToOthers;
 
-        private static bool IsSameTeam(int? userTeamId, TaskAccessSnapshot task) =>
-            userTeamId.HasValue && task.TeamId.HasValue && userTeamId.Value == task.TeamId.Value;
+        private static bool IsInAnyGroup(IReadOnlySet<int> userGroupIds, TaskAccessSnapshot task) =>
+            task.GroupId.HasValue && userGroupIds.Contains(task.GroupId.Value);
 
-        internal static bool CanEditStatus(TaskAccessSnapshot task, string currentUserId, bool isAdmin, bool isSubscriptionOwner, int? userTeamId)
+        internal static bool CanEditStatus(TaskAccessSnapshot task, string currentUserId, bool isAdmin, bool isSubscriptionOwner, IReadOnlySet<int> userGroupIds)
         {
             if (isAdmin) return true;
             if (task.CreatedById == currentUserId) return true;
@@ -43,13 +43,13 @@ namespace TaskManager.Api.Authorization
             return task.VisibilityScope switch
             {
                 TaskVisibilityScopes.Private => false,
-                TaskVisibilityScopes.TeamPublic => IsSameTeam(userTeamId, task) || isSubscriptionOwner,
+                TaskVisibilityScopes.TeamPublic => IsInAnyGroup(userGroupIds, task) || isSubscriptionOwner,
                 TaskVisibilityScopes.GlobalPublic => true,
                 _ => false
             };
         }
 
-        internal static bool CanEditTask(TaskAccessSnapshot task, string currentUserId, bool isAdmin, bool isSubscriptionOwner, bool isTeamLead, int? userTeamId)
+        internal static bool CanEditTask(TaskAccessSnapshot task, string currentUserId, bool isAdmin, bool isSubscriptionOwner, bool isTeamLead, IReadOnlySet<int> userGroupIds)
         {
             if (isAdmin) return true;
 
@@ -59,14 +59,14 @@ namespace TaskManager.Api.Authorization
             {
                 TaskVisibilityScopes.Private => isOwner,
                 TaskVisibilityScopes.TeamPublic => isOwner ||
-                                                   (isTeamLead && IsSameTeam(userTeamId, task)) ||
+                                                   IsInAnyGroup(userGroupIds, task) ||
                                                    isSubscriptionOwner,
                 TaskVisibilityScopes.GlobalPublic => isOwner || isSubscriptionOwner,
                 _ => false
             };
         }
 
-        internal static bool CanDeleteTask(TaskAccessSnapshot task, string currentUserId, bool isAdmin, bool isSubscriptionOwner, bool isTeamLead, int? userTeamId)
+        internal static bool CanDeleteTask(TaskAccessSnapshot task, string currentUserId, bool isAdmin, bool isSubscriptionOwner, bool isTeamLead, IReadOnlySet<int> userGroupIds)
         {
             if (isAdmin) return true;
 
@@ -76,14 +76,14 @@ namespace TaskManager.Api.Authorization
             {
                 TaskVisibilityScopes.Private => isOwner,
                 TaskVisibilityScopes.TeamPublic => isOwner ||
-                                                   (isTeamLead && IsSameTeam(userTeamId, task)) ||
+                                                   (isTeamLead && IsInAnyGroup(userGroupIds, task)) ||
                                                    isSubscriptionOwner,
                 TaskVisibilityScopes.GlobalPublic => isOwner || isSubscriptionOwner,
                 _ => false
             };
         }
 
-        internal static bool CanMarkProblem(TaskAccessSnapshot task, string currentUserId, bool isAdmin, bool isSubscriptionOwner, bool isTeamLead, int? userTeamId)
+        internal static bool CanMarkProblem(TaskAccessSnapshot task, string currentUserId, bool isAdmin, bool isSubscriptionOwner, bool isTeamLead, IReadOnlySet<int> userGroupIds)
         {
             if (isAdmin) return true;
 
@@ -98,13 +98,13 @@ namespace TaskManager.Api.Authorization
 
             return task.VisibilityScope switch
             {
-                TaskVisibilityScopes.TeamPublic => IsSameTeam(userTeamId, task) || isSubscriptionOwner,
+                TaskVisibilityScopes.TeamPublic => IsInAnyGroup(userGroupIds, task) || isSubscriptionOwner,
                 TaskVisibilityScopes.GlobalPublic => true,
                 _ => false
             };
         }
 
-        internal static bool CanUnmarkProblem(TaskAccessSnapshot task, string currentUserId, bool isAdmin, bool isSubscriptionOwner, bool isTeamLead, int? userTeamId)
+        internal static bool CanUnmarkProblem(TaskAccessSnapshot task, string currentUserId, bool isAdmin, bool isSubscriptionOwner, bool isTeamLead, IReadOnlySet<int> userGroupIds)
         {
             if (isAdmin) return true;
             if (!task.IsProblem) return true;
@@ -128,7 +128,7 @@ namespace TaskManager.Api.Authorization
 
             return task.VisibilityScope switch
             {
-                TaskVisibilityScopes.TeamPublic => (isTeamLead && IsSameTeam(userTeamId, task)) || isSubscriptionOwner,
+                TaskVisibilityScopes.TeamPublic => (isTeamLead && IsInAnyGroup(userGroupIds, task)) || isSubscriptionOwner,
                 TaskVisibilityScopes.GlobalPublic => isSubscriptionOwner,
                 _ => false
             };

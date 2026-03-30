@@ -5,6 +5,7 @@ using Microsoft.AspNetCore.Mvc.Testing;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.DependencyInjection;
 using TaskManager.Api;
+using TaskManager.Api.Authorization;
 using TaskManager.Api.Data;
 using Microsoft.AspNetCore.Authentication;
 using TaskManager.Api.Models;
@@ -63,6 +64,29 @@ namespace TaskManager.Tests
                     db.Teams.Add(new Team { Id = 1, Name = "Team 1" });
                 }
 
+                // Seed an Organization and a Group (Id=1) for group-based access tests
+                if (!db.Set<Organization>().Any(o => o.Id == 1))
+                {
+                    db.Set<Organization>().Add(new Organization
+                    {
+                        Id = 1,
+                        Name = "Test Org",
+                        OwnerId = "sub-owner",
+                        CreatedAt = DateTime.UtcNow
+                    });
+                }
+
+                if (!db.Set<Group>().Any(g => g.Id == 1))
+                {
+                    db.Set<Group>().Add(new Group
+                    {
+                        Id = 1,
+                        Name = "Group 1",
+                        OrganizationId = 1,
+                        CreatedAt = DateTime.UtcNow
+                    });
+                }
+
                 void EnsureUser(string id, string email, int? teamId, string subscriptionId = "sub-1")
                 {
                     if (db.Users.Any(u => u.Id == id))
@@ -87,6 +111,37 @@ namespace TaskManager.Tests
                 EnsureUser("lead1", "lead1@test.local", 1);
                 EnsureUser("user2", "user2@test.local", 1);
                 EnsureUser("sub-owner", "sub-owner@test.local", 1);
+
+                // Seed GroupMembers — all base users are in Group 1
+                void EnsureGroupMember(string userId, int groupId)
+                {
+                    if (!db.GroupMembers.Any(gm => gm.UserId == userId && gm.GroupId == groupId))
+                    {
+                        db.GroupMembers.Add(new GroupMember
+                        {
+                            UserId = userId,
+                            GroupId = groupId,
+                            JoinedAt = DateTime.UtcNow
+                        });
+                    }
+                }
+
+                EnsureGroupMember("user1", 1);
+                EnsureGroupMember("lead1", 1);
+                EnsureGroupMember("user2", 1);
+                EnsureGroupMember("sub-owner", 1);
+
+                // Seed OrgMember for sub-owner (SubscriptionOwner role comes from DB, not Keycloak claims)
+                if (!db.OrgMembers.Any(m => m.UserId == "sub-owner"))
+                {
+                    db.OrgMembers.Add(new OrgMember
+                    {
+                        OrganizationId = 1,
+                        UserId = "sub-owner",
+                        Role = OrgRoles.SubscriptionOwner,
+                        JoinedAt = DateTime.UtcNow
+                    });
+                }
 
                 db.SaveChanges();
             });

@@ -1,3 +1,4 @@
+using System;
 using System.Net;
 using System.Net.Http.Json;
 using Microsoft.Extensions.DependencyInjection;
@@ -74,7 +75,7 @@ namespace TaskManager.Tests
         [Fact]
         public async Task AssignSelf_ShouldFail_WhenTaskAssignedToOthers()
         {
-            // 1. Create User3 in Team 1
+            // 1. Create User3 in Team 1 (and Group 1 for group-based visibility)
             using (var scope = _factory.Services.CreateScope())
             {
                 var db = scope.ServiceProvider.GetRequiredService<ApplicationDbContext>();
@@ -89,6 +90,12 @@ namespace TaskManager.Tests
                         SubscriptionId = "sub-1",
                         KeycloakSubject = "user3"
                     });
+                    await db.SaveChangesAsync();
+                }
+
+                if (!db.GroupMembers.Any(gm => gm.UserId == "user3" && gm.GroupId == 1))
+                {
+                    db.GroupMembers.Add(new GroupMember { UserId = "user3", GroupId = 1, JoinedAt = DateTime.UtcNow });
                     await db.SaveChangesAsync();
                 }
             }

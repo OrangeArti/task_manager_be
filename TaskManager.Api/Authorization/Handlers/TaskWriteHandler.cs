@@ -1,4 +1,5 @@
 using System;
+using System.Collections.Generic;
 using System.Security.Claims;
 using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Http;
@@ -66,12 +67,17 @@ namespace TaskManager.Api.Authorization.Handlers
 
             var access = TaskAccessEvaluator.FromTask(task);
 
-            var isSubscriptionOwner = context.User.IsInRole("SubscriptionOwner");
             var isTeamLead = context.User.IsInRole("TeamLead");
-            var userTeamId = await _dbContext.Users
-                .Where(u => u.Id == currentUserId)
-                .Select(u => u.TeamId)
-                .FirstOrDefaultAsync();
+
+            var groupIdList = await _dbContext.GroupMembers
+                .AsNoTracking()
+                .Where(gm => gm.UserId == currentUserId)
+                .Select(gm => gm.GroupId)
+                .ToListAsync();
+            IReadOnlySet<int> userGroupIds = new HashSet<int>(groupIdList);
+
+            var isSubscriptionOwner = await _dbContext.OrgMembers
+                .AnyAsync(m => m.UserId == currentUserId && m.Role == OrgRoles.SubscriptionOwner);
 
             var method = httpContext.Request.Method;
             var path = httpContext.Request.Path.Value?.ToLowerInvariant() ?? string.Empty;
@@ -89,23 +95,23 @@ namespace TaskManager.Api.Authorization.Handlers
 
             if (isPut)
             {
-                allowed = TaskAccessEvaluator.CanEditTask(access, currentUserId, isAdmin: false, isSubscriptionOwner, isTeamLead, userTeamId);
+                allowed = TaskAccessEvaluator.CanEditTask(access, currentUserId, isAdmin: false, isSubscriptionOwner, isTeamLead, userGroupIds);
             }
             else if (isStatusPatch)
             {
-                allowed = TaskAccessEvaluator.CanEditStatus(access, currentUserId, isAdmin: false, isSubscriptionOwner, userTeamId);
+                allowed = TaskAccessEvaluator.CanEditStatus(access, currentUserId, isAdmin: false, isSubscriptionOwner, userGroupIds);
             }
             else if (isProblemPatch)
             {
-                allowed = TaskAccessEvaluator.CanMarkProblem(access, currentUserId, isAdmin: false, isSubscriptionOwner, isTeamLead, userTeamId);
+                allowed = TaskAccessEvaluator.CanMarkProblem(access, currentUserId, isAdmin: false, isSubscriptionOwner, isTeamLead, userGroupIds);
             }
             else if (isProblemDelete)
             {
-                allowed = TaskAccessEvaluator.CanUnmarkProblem(access, currentUserId, isAdmin: false, isSubscriptionOwner, isTeamLead, userTeamId);
+                allowed = TaskAccessEvaluator.CanUnmarkProblem(access, currentUserId, isAdmin: false, isSubscriptionOwner, isTeamLead, userGroupIds);
             }
             else if (isTaskDelete)
             {
-                allowed = TaskAccessEvaluator.CanDeleteTask(access, currentUserId, isAdmin: false, isSubscriptionOwner, isTeamLead, userTeamId);
+                allowed = TaskAccessEvaluator.CanDeleteTask(access, currentUserId, isAdmin: false, isSubscriptionOwner, isTeamLead, userGroupIds);
             }
             else
             {

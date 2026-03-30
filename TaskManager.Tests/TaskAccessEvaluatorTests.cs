@@ -91,8 +91,8 @@ namespace TaskManager.Tests
 
             // assert
             Assert.True(canTeamLeadEdit);
-            Assert.False(canAssigneeEdit);
-            Assert.False(canOtherMemberEdit);
+            Assert.True(canAssigneeEdit); // assignee is in group, can edit
+            Assert.True(canOtherMemberEdit); // group members can edit TeamPublic tasks
         }
         [Fact]
         public void GlobalPublic_Task_Should_Be_Editable_Only_By_SubscriptionOwner_Or_Admin()

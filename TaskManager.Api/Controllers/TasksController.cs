@@ -86,17 +86,18 @@ namespace TaskManager.Api.Controllers
         };
 
 
-        private async Task<int?> GetUserTeamIdAsync()
+        private async Task<(IReadOnlySet<int> groupIds, bool isSubscriptionOwner)> GetUserGroupContextAsync(string userId)
         {
-            var userId = await GetCurrentUserDbIdAsync();
-            if (string.IsNullOrEmpty(userId)) return null;
+            var groupIds = await _db.GroupMembers
+                .AsNoTracking()
+                .Where(gm => gm.UserId == userId)
+                .Select(gm => gm.GroupId)
+                .ToListAsync();
 
-            var teamId = await _db.Users.AsNoTracking()
-                .Where(u => u.Id == userId)
-                .Select(u => u.TeamId)
-                .FirstOrDefaultAsync();
+            var isSubOwner = await _db.OrgMembers
+                .AnyAsync(m => m.UserId == userId && m.Role == OrgRoles.SubscriptionOwner);
 
-            return teamId;
+            return (new HashSet<int>(groupIds), isSubOwner);
         }
 
         /// <summary>
@@ -121,13 +122,13 @@ namespace TaskManager.Api.Controllers
                 return Unauthorized();
 
             var isAdmin = User.IsInRole("Admin");
-            var isSubscriptionOwner = User.IsInRole("SubscriptionOwner");
-            var userTeamId = await GetUserTeamIdAsync();
+            var (userGroupIds, isSubscriptionOwner) = await GetUserGroupContextAsync(userId);
 
             var q = _db.Tasks.AsNoTracking();
 
             if (!isAdmin)
             {
+                var groupIdsList = userGroupIds.ToList();
                 q = q.Where(t =>
                     t.CreatedById == userId ||
                     t.AssignedToId == userId ||
@@ -135,7 +136,7 @@ namespace TaskManager.Api.Controllers
                         t.VisibilityScope == TaskVisibilityScopes.TeamPublic &&
                         (t.AssignedToId == null || t.IsAssigneeVisibleToOthers) &&
                         (
-                            (userTeamId.HasValue && t.TeamId.HasValue && t.TeamId == userTeamId.Value) ||
+                            (t.GroupId.HasValue && groupIdsList.Contains(t.GroupId.Value)) ||
                             isSubscriptionOwner
                         )
                     ) ||
@@ -231,21 +232,14 @@ namespace TaskManager.Api.Controllers
             var effectiveScope = normalizedScope ?? TaskVisibilityScopes.Private;
 
             var isAdmin = User.IsInRole("Admin");
-            var isSubscriptionOwner = User.IsInRole("SubscriptionOwner");
             var isTeamLead = User.IsInRole("TeamLead");
+            var (userGroupIds, isSubscriptionOwner) = await GetUserGroupContextAsync(userId);
             var canChangeAssigneeVisibility = isAdmin || isSubscriptionOwner || isTeamLead;
-
-            var userTeamId = await GetUserTeamIdAsync();
 
             int? teamId = request.TeamId;
 
             if (effectiveScope == TaskVisibilityScopes.TeamPublic)
             {
-                if (!teamId.HasValue)
-                {
-                    teamId = userTeamId;
-                }
-
                 if (!teamId.HasValue)
                 {
                     ModelState.AddModelError(nameof(request.TeamId), "TeamPublic tasks require a team.");
@@ -256,7 +250,7 @@ namespace TaskManager.Api.Controllers
 
                 if (!isAdmin && !isSubscriptionOwner)
                 {
-                    if (!userTeamId.HasValue || userTeamId.Value != teamIdValue)
+                    if (!userGroupIds.Contains(teamIdValue))
                     {
                         return Forbid();
                     }
@@ -335,6 +329,7 @@ namespace TaskManager.Api.Controllers
                 AssignedToId = assignedToId,
                 IsAssigneeVisibleToOthers = isAssigneeVisibleToOthers,
                 TeamId = teamId,
+                GroupId = teamId, // mirror TeamId to GroupId during transition to group-based access
                 VisibilityScope = effectiveScope,
                 CreatedById = userId,
                 CreatedAt = DateTime.UtcNow
@@ -370,13 +365,13 @@ namespace TaskManager.Api.Controllers
                 return Unauthorized();
 
             var isAdmin = User.IsInRole("Admin");
-            var isSubscriptionOwner = User.IsInRole("SubscriptionOwner");
-            var userTeamId = await GetUserTeamIdAsync();
+            var (userGroupIds, isSubscriptionOwner) = await GetUserGroupContextAsync(currentUserId);
 
             var itemQuery = _db.Tasks.AsNoTracking().Where(t => t.Id == id);
 
             if (!isAdmin)
             {
+                var groupIdsList = userGroupIds.ToList();
                 itemQuery = itemQuery.Where(t =>
                     t.CreatedById == currentUserId ||
                     t.AssignedToId == currentUserId ||
@@ -384,7 +379,7 @@ namespace TaskManager.Api.Controllers
                         t.VisibilityScope == TaskVisibilityScopes.TeamPublic &&
                         (t.AssignedToId == null || t.IsAssigneeVisibleToOthers) &&
                         (
-                            (userTeamId.HasValue && t.TeamId.HasValue && t.TeamId == userTeamId.Value) ||
+                            (t.GroupId.HasValue && groupIdsList.Contains(t.GroupId.Value)) ||
                             isSubscriptionOwner
                         )
                     ) ||
@@ -432,11 +427,10 @@ namespace TaskManager.Api.Controllers
             if (string.IsNullOrEmpty(currentUserId)) return Unauthorized();
 
             var isAdmin = User.IsInRole("Admin");
-            var isSubscriptionOwner = User.IsInRole("SubscriptionOwner");
-            var userTeamId = await GetUserTeamIdAsync();
+            var (userGroupIds, isSubscriptionOwner) = await GetUserGroupContextAsync(currentUserId);
             var access = TaskAccessEvaluator.FromTask(entity);
 
-            if (!TaskAccessEvaluator.CanEditStatus(access, currentUserId, isAdmin, isSubscriptionOwner, userTeamId))
+            if (!TaskAccessEvaluator.CanEditStatus(access, currentUserId, isAdmin, isSubscriptionOwner, userGroupIds))
                 return Forbid();
 
             var newValue = request.IsCompleted!.Value;
@@ -490,14 +484,13 @@ namespace TaskManager.Api.Controllers
             if (string.IsNullOrEmpty(currentUserId)) return Unauthorized();
 
             var isAdmin = User.IsInRole("Admin");
-            var isSubscriptionOwner = User.IsInRole("SubscriptionOwner");
             var isTeamLead = User.IsInRole("TeamLead");
+            var (userGroupIds, isSubscriptionOwner) = await GetUserGroupContextAsync(currentUserId);
             var canChangeAssigneeVisibility = isAdmin || isSubscriptionOwner || isTeamLead;
-            var userTeamId = await GetUserTeamIdAsync();
             var access = TaskAccessEvaluator.FromTask(entity);
             var isOwner = access.CreatedById == currentUserId;
 
-            if (!TaskAccessEvaluator.CanEditTask(access, currentUserId, isAdmin, isSubscriptionOwner, isTeamLead, userTeamId))
+            if (!TaskAccessEvaluator.CanEditTask(access, currentUserId, isAdmin, isSubscriptionOwner, isTeamLead, userGroupIds))
                 return Forbid();
 
             if (request.DueDate.HasValue && request.DueDate.Value < DateTime.UtcNow.Date)
@@ -538,10 +531,6 @@ namespace TaskManager.Api.Controllers
                     {
                         newTeamId = entity.TeamId;
                     }
-                    else
-                    {
-                        newTeamId = userTeamId;
-                    }
                 }
 
                 if (!newTeamId.HasValue)
@@ -554,7 +543,7 @@ namespace TaskManager.Api.Controllers
 
                 if (!isAdmin && !isSubscriptionOwner)
                 {
-                    if (!userTeamId.HasValue || userTeamId.Value != newTeamIdValue)
+                    if (!userGroupIds.Contains(newTeamIdValue))
                     {
                         return Forbid();
                     }
@@ -574,11 +563,11 @@ namespace TaskManager.Api.Controllers
 
             if (!isAdmin)
             {
-                var sameTeamForUpdate = newTeamId.HasValue && userTeamId.HasValue && userTeamId.Value == newTeamId.Value;
+                var inGroupForUpdate = newTeamId.HasValue && userGroupIds.Contains(newTeamId.Value);
                 var targetScopeAllowed = targetScope switch
                 {
                     TaskVisibilityScopes.Private => isOwner,
-                    TaskVisibilityScopes.TeamPublic => isSubscriptionOwner || (sameTeamForUpdate && (isTeamLead || isOwner)),
+                    TaskVisibilityScopes.TeamPublic => isSubscriptionOwner || (inGroupForUpdate && (isTeamLead || isOwner)),
                     TaskVisibilityScopes.GlobalPublic => isSubscriptionOwner || isOwner,
                     _ => false
                 };
@@ -690,12 +679,11 @@ namespace TaskManager.Api.Controllers
             if (string.IsNullOrEmpty(currentUserId)) return Unauthorized();
 
             var isAdmin = User.IsInRole("Admin");
-            var isSubscriptionOwner = User.IsInRole("SubscriptionOwner");
             var isTeamLead = User.IsInRole("TeamLead");
-            var userTeamId = await GetUserTeamIdAsync();
+            var (userGroupIds, isSubscriptionOwner) = await GetUserGroupContextAsync(currentUserId);
             var access = TaskAccessEvaluator.FromTask(entity);
 
-            if (!TaskAccessEvaluator.CanDeleteTask(access, currentUserId, isAdmin, isSubscriptionOwner, isTeamLead, userTeamId))
+            if (!TaskAccessEvaluator.CanDeleteTask(access, currentUserId, isAdmin, isSubscriptionOwner, isTeamLead, userGroupIds))
                 return Forbid();
 
             _db.Tasks.Remove(entity);
@@ -734,12 +722,11 @@ namespace TaskManager.Api.Controllers
                 return NotFound(new { message = $"Task #{id} not found" });
 
             var isAdmin = User.IsInRole("Admin");
-            var isSubscriptionOwner = User.IsInRole("SubscriptionOwner");
             var isTeamLead = User.IsInRole("TeamLead");
-            var userTeamId = await GetUserTeamIdAsync();
+            var (userGroupIds, isSubscriptionOwner) = await GetUserGroupContextAsync(currentUserId);
             var access = TaskAccessEvaluator.FromTask(entity);
 
-            if (!TaskAccessEvaluator.CanMarkProblem(access, currentUserId, isAdmin, isSubscriptionOwner, isTeamLead, userTeamId))
+            if (!TaskAccessEvaluator.CanMarkProblem(access, currentUserId, isAdmin, isSubscriptionOwner, isTeamLead, userGroupIds))
                 return Forbid();
 
             var newDescription = request.Description.Trim();
@@ -783,12 +770,11 @@ namespace TaskManager.Api.Controllers
                 return NotFound(new { message = $"Task #{id} not found" });
 
             var isAdmin = User.IsInRole("Admin");
-            var isSubscriptionOwner = User.IsInRole("SubscriptionOwner");
             var isTeamLead = User.IsInRole("TeamLead");
-            var userTeamId = await GetUserTeamIdAsync();
+            var (userGroupIds, isSubscriptionOwner) = await GetUserGroupContextAsync(currentUserId);
             var access = TaskAccessEvaluator.FromTask(entity);
 
-            if (!TaskAccessEvaluator.CanUnmarkProblem(access, currentUserId, isAdmin, isSubscriptionOwner, isTeamLead, userTeamId))
+            if (!TaskAccessEvaluator.CanUnmarkProblem(access, currentUserId, isAdmin, isSubscriptionOwner, isTeamLead, userGroupIds))
                 return Forbid();
 
             if (!entity.IsProblem)
@@ -831,8 +817,7 @@ namespace TaskManager.Api.Controllers
 
             // 1. Check visibility (same logic as GetById)
             var isAdmin = User.IsInRole("Admin");
-            var isSubscriptionOwner = User.IsInRole("SubscriptionOwner");
-            var userTeamId = await GetUserTeamIdAsync();
+            var (userGroupIds, isSubscriptionOwner) = await GetUserGroupContextAsync(currentUserId);
 
             if (!isAdmin)
             {
@@ -843,7 +828,7 @@ namespace TaskManager.Api.Controllers
                      (
                         entity.VisibilityScope == TaskVisibilityScopes.TeamPublic &&
                         (
-                            (userTeamId.HasValue && entity.TeamId.HasValue && entity.TeamId == userTeamId.Value) ||
+                            (entity.GroupId.HasValue && userGroupIds.Contains(entity.GroupId.Value)) ||
                             isSubscriptionOwner
                         )
                     ) ||
