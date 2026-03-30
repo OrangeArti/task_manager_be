@@ -5,6 +5,7 @@ using Microsoft.EntityFrameworkCore;
 using TaskManager.Api.Authorization.Requirements;
 using TaskManager.Api.Data;
 using TaskManager.Api.Models;
+using TaskManager.Api.Authorization;
 
 namespace TaskManager.Api.Authorization.Handlers
 {
@@ -63,7 +64,7 @@ namespace TaskManager.Api.Authorization.Handlers
                     t.AssignedToId,
                     t.IsAssigneeVisibleToOthers,
                     t.VisibilityScope,
-                    t.TeamId
+                    t.GroupId
                 })
                 .FirstOrDefaultAsync();
 
@@ -72,12 +73,14 @@ namespace TaskManager.Api.Authorization.Handlers
                 return;
             }
 
-            var currentTeamId = await _dbContext.Users
-                .Where(u => u.Id == currentUserId)
-                .Select(u => u.TeamId)
-                .FirstOrDefaultAsync();
+            var userGroupIds = await _dbContext.GroupMembers
+                .AsNoTracking()
+                .Where(gm => gm.UserId == currentUserId)
+                .Select(gm => gm.GroupId)
+                .ToHashSetAsync();
 
-            var isSubscriptionOwner = context.User.IsInRole("SubscriptionOwner");
+            var isSubscriptionOwner = await _dbContext.OrgMembers
+                .AnyAsync(m => m.UserId == currentUserId && m.Role == OrgRoles.SubscriptionOwner);
 
             if (task.CreatedById == currentUserId ||
                 task.AssignedToId == currentUserId ||
@@ -85,7 +88,7 @@ namespace TaskManager.Api.Authorization.Handlers
                     task.VisibilityScope == TaskVisibilityScopes.TeamPublic &&
                     (task.AssignedToId == null || task.IsAssigneeVisibleToOthers) &&
                     (
-                        (currentTeamId.HasValue && task.TeamId.HasValue && task.TeamId == currentTeamId) ||
+                        (task.GroupId.HasValue && userGroupIds.Contains(task.GroupId.Value)) ||
                         isSubscriptionOwner
                     )
                 ) ||

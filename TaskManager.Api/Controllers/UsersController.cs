@@ -103,7 +103,6 @@ namespace TaskManager.Api.Controllers
                     {
                         Id = user.Id,
                         DisplayName = user.DisplayName ?? user.UserName ?? string.Empty,
-                        TeamId = user.TeamId,
                         Roles = roles.ToList()
                     });
                 }

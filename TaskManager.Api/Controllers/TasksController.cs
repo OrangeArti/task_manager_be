@@ -54,7 +54,6 @@ namespace TaskManager.Api.Controllers
             CreatedById = t.CreatedById,
             AssignedToId = t.AssignedToId,
             IsAssigneeVisibleToOthers = t.IsAssigneeVisibleToOthers,
-            TeamId = t.TeamId,
             IsProblem = t.IsProblem,
             ProblemDescription = t.ProblemDescription,
             ProblemReporterId = t.ProblemReporterId,
@@ -76,7 +75,6 @@ namespace TaskManager.Api.Controllers
             CreatedById = entity.CreatedById,
             AssignedToId = entity.AssignedToId,
             IsAssigneeVisibleToOthers = entity.IsAssigneeVisibleToOthers,
-            TeamId = entity.TeamId,
             IsProblem = entity.IsProblem,
             ProblemDescription = entity.ProblemDescription,
             ProblemReporterId = entity.ProblemReporterId,
@@ -236,36 +234,36 @@ namespace TaskManager.Api.Controllers
             var (userGroupIds, isSubscriptionOwner) = await GetUserGroupContextAsync(userId);
             var canChangeAssigneeVisibility = isAdmin || isSubscriptionOwner || isTeamLead;
 
-            int? teamId = request.TeamId;
+            int? groupId = request.GroupId;
 
             if (effectiveScope == TaskVisibilityScopes.TeamPublic)
             {
-                if (!teamId.HasValue)
+                if (!groupId.HasValue)
                 {
-                    ModelState.AddModelError(nameof(request.TeamId), "TeamPublic tasks require a team.");
+                    ModelState.AddModelError(nameof(request.GroupId), "TeamPublic tasks require a group.");
                     return ValidationProblem(ModelState);
                 }
 
-                var teamIdValue = teamId.Value;
+                var groupIdValue = groupId.Value;
 
                 if (!isAdmin && !isSubscriptionOwner)
                 {
-                    if (!userGroupIds.Contains(teamIdValue))
+                    if (!userGroupIds.Contains(groupIdValue))
                     {
                         return Forbid();
                     }
                 }
 
-                var teamExists = await _db.Teams.AnyAsync(t => t.Id == teamIdValue);
-                if (!teamExists)
+                var groupExists = await _db.Groups.AnyAsync(g => g.Id == groupIdValue);
+                if (!groupExists)
                 {
-                    ModelState.AddModelError(nameof(request.TeamId), $"Team '{teamIdValue}' not found.");
+                    ModelState.AddModelError(nameof(request.GroupId), $"Group '{groupIdValue}' not found.");
                     return ValidationProblem(ModelState);
                 }
             }
             else
             {
-                teamId = null;
+                groupId = null;
             }
 
             var assignedToId = string.IsNullOrWhiteSpace(request.AssignedToId)
@@ -288,26 +286,14 @@ namespace TaskManager.Api.Controllers
 
             if (assignedToId is not null)
             {
-                var assignee = await _db.Users
+                var assigneeExists = await _db.Users
                     .AsNoTracking()
-                    .Where(u => u.Id == assignedToId)
-                    .Select(u => new { u.Id, u.TeamId })
-                    .FirstOrDefaultAsync();
+                    .AnyAsync(u => u.Id == assignedToId);
 
-                if (assignee is null)
+                if (!assigneeExists)
                 {
                     ModelState.AddModelError(nameof(request.AssignedToId), "Assigned user not found.");
                     return ValidationProblem(ModelState);
-                }
-
-                if (effectiveScope == TaskVisibilityScopes.TeamPublic)
-                {
-                    var teamIdValue = teamId!.Value;
-                    if (!assignee.TeamId.HasValue || assignee.TeamId.Value != teamIdValue)
-                    {
-                        ModelState.AddModelError(nameof(request.AssignedToId), "Assignee must belong to the task team.");
-                        return ValidationProblem(ModelState);
-                    }
                 }
 
                 if (!canChangeAssigneeVisibility &&
@@ -328,8 +314,7 @@ namespace TaskManager.Api.Controllers
                 Priority = request.Priority,
                 AssignedToId = assignedToId,
                 IsAssigneeVisibleToOthers = isAssigneeVisibleToOthers,
-                TeamId = teamId,
-                GroupId = teamId, // mirror TeamId to GroupId during transition to group-based access
+                GroupId = groupId,
                 VisibilityScope = effectiveScope,
                 CreatedById = userId,
                 CreatedAt = DateTime.UtcNow
@@ -521,49 +506,49 @@ namespace TaskManager.Api.Controllers
             var targetScope = scopeFromRequest!;
             var scopeChanged = targetScope != entity.VisibilityScope;
 
-            int? newTeamId = request.TeamId;
+            int? newGroupId = request.GroupId;
 
             if (targetScope == TaskVisibilityScopes.TeamPublic)
             {
-                if (!newTeamId.HasValue)
+                if (!newGroupId.HasValue)
                 {
-                    if (!scopeChanged && entity.TeamId.HasValue)
+                    if (!scopeChanged && entity.GroupId.HasValue)
                     {
-                        newTeamId = entity.TeamId;
+                        newGroupId = entity.GroupId;
                     }
                 }
 
-                if (!newTeamId.HasValue)
+                if (!newGroupId.HasValue)
                 {
-                    ModelState.AddModelError(nameof(request.TeamId), "TeamPublic tasks require a team.");
+                    ModelState.AddModelError(nameof(request.GroupId), "TeamPublic tasks require a group.");
                     return ValidationProblem(ModelState);
                 }
 
-                var newTeamIdValue = newTeamId.Value;
+                var newGroupIdValue = newGroupId.Value;
 
                 if (!isAdmin && !isSubscriptionOwner)
                 {
-                    if (!userGroupIds.Contains(newTeamIdValue))
+                    if (!userGroupIds.Contains(newGroupIdValue))
                     {
                         return Forbid();
                     }
                 }
 
-                var teamExists = await _db.Teams.AnyAsync(t => t.Id == newTeamIdValue);
-                if (!teamExists)
+                var groupExists = await _db.Groups.AnyAsync(g => g.Id == newGroupIdValue);
+                if (!groupExists)
                 {
-                    ModelState.AddModelError(nameof(request.TeamId), $"Team '{newTeamIdValue}' not found.");
+                    ModelState.AddModelError(nameof(request.GroupId), $"Group '{newGroupIdValue}' not found.");
                     return ValidationProblem(ModelState);
                 }
             }
             else
             {
-                newTeamId = null;
+                newGroupId = null;
             }
 
             if (!isAdmin)
             {
-                var inGroupForUpdate = newTeamId.HasValue && userGroupIds.Contains(newTeamId.Value);
+                var inGroupForUpdate = newGroupId.HasValue && userGroupIds.Contains(newGroupId.Value);
                 var targetScopeAllowed = targetScope switch
                 {
                     TaskVisibilityScopes.Private => isOwner,
@@ -605,26 +590,14 @@ namespace TaskManager.Api.Controllers
 
             if (newAssignedToId is not null)
             {
-                var assignee = await _db.Users
+                var assigneeExists = await _db.Users
                     .AsNoTracking()
-                    .Where(u => u.Id == newAssignedToId)
-                    .Select(u => new { u.Id, u.TeamId })
-                    .FirstOrDefaultAsync();
+                    .AnyAsync(u => u.Id == newAssignedToId);
 
-                if (assignee is null)
+                if (!assigneeExists)
                 {
                     ModelState.AddModelError(nameof(request.AssignedToId), "Assigned user not found.");
                     return ValidationProblem(ModelState);
-                }
-
-                if (targetScope == TaskVisibilityScopes.TeamPublic)
-                {
-                    var teamIdValue = newTeamId!.Value;
-                    if (!assignee.TeamId.HasValue || assignee.TeamId.Value != teamIdValue)
-                    {
-                        ModelState.AddModelError(nameof(request.AssignedToId), "Assignee must belong to the task team.");
-                        return ValidationProblem(ModelState);
-                    }
                 }
             }
             else
@@ -639,7 +612,7 @@ namespace TaskManager.Api.Controllers
                 entity.Priority == request.Priority &&
                 entity.VisibilityScope == targetScope &&
                 entity.AssignedToId == newAssignedToId &&
-                entity.TeamId == newTeamId &&
+                entity.GroupId == newGroupId &&
                 entity.IsAssigneeVisibleToOthers == newIsAssigneeVisible;
 
             if (noChanges)
@@ -652,7 +625,7 @@ namespace TaskManager.Api.Controllers
             entity.AssignedToId = newAssignedToId;
             entity.IsAssigneeVisibleToOthers = newIsAssigneeVisible;
             entity.VisibilityScope = targetScope;
-            entity.TeamId = newTeamId;
+            entity.GroupId = newGroupId;
 
             await _db.SaveChangesAsync();
 

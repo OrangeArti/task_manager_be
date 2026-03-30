@@ -12,8 +12,6 @@ namespace TaskManager.Api.Data
 
 		public DbSet<TaskItem> Tasks => Set<TaskItem>();
 
-		public DbSet<Team> Teams => Set<Team>();
-
 		public DbSet<Organization> Organizations => Set<Organization>();
 		public DbSet<Subscription> Subscriptions => Set<Subscription>();
 		public DbSet<Group> Groups => Set<Group>();
@@ -51,11 +49,6 @@ namespace TaskManager.Api.Data
                     .WithMany()
                     .HasForeignKey(t => t.AssignedToId)
                     .OnDelete(DeleteBehavior.SetNull);
-                e.HasIndex(t => t.TeamId);
-                e.HasOne(t => t.Team)
-                    .WithMany()
-                    .HasForeignKey(t => t.TeamId)
-                    .OnDelete(DeleteBehavior.SetNull);
 				e.Property(t => t.IsProblem).HasDefaultValue(false);
 				e.Property(t => t.ProblemDescription).HasMaxLength(2000);
 				e.Property(t => t.ProblemReporterId).HasMaxLength(450);
@@ -71,20 +64,6 @@ namespace TaskManager.Api.Data
 			modelBuilder.Entity<ApplicationUser>()
 				.HasIndex(u => u.KeycloakSubject)
 				.IsUnique(false);
-
-			modelBuilder.Entity<Team>(entity =>
-			{
-				entity.HasKey(t => t.Id);
-				entity.Property(t => t.Name)
-					.HasMaxLength(100)
-					.IsRequired();
-				entity.Property(t => t.CreatedAt)
-					.HasDefaultValueSql("GETUTCDATE()");
-				entity.HasMany(t => t.Members)
-					.WithOne(u => u.Team)
-					.HasForeignKey(u => u.TeamId)
-					.OnDelete(DeleteBehavior.SetNull);
-			});
 
             // Organization
             modelBuilder.Entity<Organization>(o =>

@@ -37,8 +37,8 @@ namespace TaskManager.Api.Dtos
         /// <summary>Whether the assignee is visible to everyone (true) or only author and assignee (false).</summary>
         public bool? IsAssigneeVisibleToOthers { get; set; }
 
-        /// <summary>Task team (required for TeamPublic tasks, optional for Private).</summary>
-        public int? TeamId { get; set; }
+        /// <summary>Group for the task (required for TeamPublic tasks).</summary>
+        public int? GroupId { get; set; }
 
         /// <summary>Visibility scope: Private | TeamPublic | GlobalPublic.</summary>
         [StringLength(32)]

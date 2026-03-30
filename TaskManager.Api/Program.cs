@@ -8,7 +8,6 @@ using Microsoft.AspNetCore.Identity;
 using TaskManager.Api.Models;
 using Microsoft.OpenApi.Models; // required for Swagger security
 using TaskManager.Api;
-using TaskManager.Api.Services;
 using Microsoft.AspNetCore.Authorization;
 using TaskManager.Api.Authorization.Handlers;
 using Microsoft.AspNetCore.RateLimiting;
@@ -137,7 +136,6 @@ builder.Services.AddAuthorization(
 builder.Services.AddScoped<IAuthorizationHandler, TaskReadHandler>();
 builder.Services.AddScoped<IAuthorizationHandler, TaskWriteHandler>();
 
-builder.Services.AddScoped<ITeamService, TeamService>();
 builder.Services.AddScoped<IDatabaseHealthProbe, EfDatabaseHealthProbe>();
 
 builder.Services.AddRateLimiter(options =>

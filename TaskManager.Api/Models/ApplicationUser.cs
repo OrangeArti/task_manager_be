@@ -8,9 +8,6 @@ namespace TaskManager.Api.Models
         public string? DisplayName { get; set; }
         public string? AvatarUrl { get; set; }
 
-        public int? TeamId { get; set; }
-        public Team? Team { get; set; }
-
         public string? SubscriptionId { get; set; }
 
         /// <summary>
