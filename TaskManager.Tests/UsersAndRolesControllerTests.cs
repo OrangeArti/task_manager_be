@@ -14,6 +14,7 @@ using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Logging.Abstractions;
 using TaskManager.Api;
+using TaskManager.Api.Authorization;
 using TaskManager.Api.Controllers;
 using TaskManager.Api.Data;
 using TaskManager.Api.Dtos;
@@ -116,32 +117,48 @@ namespace TaskManager.Tests
                 await userManager.CreateAsync(BuildUser("other", "other@test.local", "Other User", "sub-2"), "Str0ngP@ss!");
             });
 
-            var response = await _client.SendAsync(Authorized(HttpMethod.Delete, "/api/users/other", admin: false, userId: "owner1", roleOverride: "SubscriptionOwner", subscriptionId: "sub-1"));
+            var response = await _client.SendAsync(Authorized(HttpMethod.Delete, "/api/users/other", admin: false, userId: "owner1", roleOverride: "SubscriptionOwner"));
             Assert.Equal(HttpStatusCode.Forbidden, response.StatusCode);
         }
 
         [Fact]
-        public async Task Users_GetAll_Should_Return_Only_Own_Subscription_For_Owner()
+        public async Task Users_GetAll_Should_Return_Only_Own_Org_For_Owner()
         {
             await ResetDataAsync(async sp =>
             {
                 var userManager = sp.GetRequiredService<UserManager<ApplicationUser>>();
+                var db = sp.GetRequiredService<ApplicationDbContext>();
                 await EnsureRoleAsync(sp, "SubscriptionOwner");
-                await userManager.CreateAsync(BuildUser("owner1", "owner1@test.local", "Owner One", "sub-1"), "Str0ngP@ss!");
-                var owner = await userManager.FindByIdAsync("owner1");
-                Assert.NotNull(owner);
-                await userManager.AddToRoleAsync(owner!, "SubscriptionOwner");
 
-                await userManager.CreateAsync(BuildUser("u1", "u1@test.local", "User Sub1", "sub-1"), "Str0ngP@ss!");
-                await userManager.CreateAsync(BuildUser("u2", "u2@test.local", "User Sub2", "sub-2"), "Str0ngP@ss!");
+                // Create users with KeycloakSubject set (required for DB lookup in GetCurrentUserDbIdAsync)
+                var owner = BuildUser("owner1", "owner1@test.local", "Owner One");
+                owner.KeycloakSubject = "owner1";
+                await userManager.CreateAsync(owner, "Str0ngP@ss!");
+                await userManager.AddToRoleAsync(owner, "SubscriptionOwner");
+
+                var u1 = BuildUser("u1", "u1@test.local", "User Org1");
+                u1.KeycloakSubject = "u1";
+                await userManager.CreateAsync(u1, "Str0ngP@ss!");
+
+                var u2 = BuildUser("u2", "u2@test.local", "User Other");
+                u2.KeycloakSubject = "u2";
+                await userManager.CreateAsync(u2, "Str0ngP@ss!");
+
+                // Create an org with owner1 and u1 as members; u2 is NOT a member
+                db.Organizations.Add(new Organization { Id = 10, Name = "Test Org", OwnerId = "owner1", CreatedAt = DateTime.UtcNow });
+                db.OrgMembers.Add(new OrgMember { OrganizationId = 10, UserId = "owner1", Role = OrgRoles.SubscriptionOwner, JoinedAt = DateTime.UtcNow });
+                db.OrgMembers.Add(new OrgMember { OrganizationId = 10, UserId = "u1", Role = OrgRoles.Member, JoinedAt = DateTime.UtcNow });
+                await db.SaveChangesAsync();
             });
 
-            var response = await _client.SendAsync(Authorized(HttpMethod.Get, "/api/users", admin: false, userId: "owner1", roleOverride: "SubscriptionOwner", subscriptionId: "sub-1"));
+            var response = await _client.SendAsync(Authorized(HttpMethod.Get, "/api/users", admin: false, userId: "owner1", roleOverride: "SubscriptionOwner"));
             Assert.Equal(HttpStatusCode.OK, response.StatusCode);
 
             var result = await Deserialize<PagedResult<UserDto>>(response);
             Assert.NotNull(result);
-            Assert.All(result!.Items, u => Assert.Equal("sub-1", u.SubscriptionId));
+            // SubscriptionOwner should only see users in their org (owner1 + u1), not u2
+            Assert.Equal(2, result!.Total);
+            Assert.All(result.Items, u => Assert.True(u.Id == "owner1" || u.Id == "u1"));
         }
 
         [Fact]
@@ -178,7 +195,7 @@ namespace TaskManager.Tests
                 await userManager.CreateAsync(BuildUser("u1", "u1@test.local", "User One", "sub-1"), "Str0ngP@ss!");
             });
 
-            var response = await _client.SendAsync(Authorized(HttpMethod.Get, "/api/users", admin: true, userId: "admin", subscriptionId: "sub-1"));
+            var response = await _client.SendAsync(Authorized(HttpMethod.Get, "/api/users", admin: true, userId: "admin"));
             Assert.Equal(HttpStatusCode.OK, response.StatusCode);
 
             var result = await Deserialize<PagedResult<UserDto>>(response);
@@ -227,7 +244,7 @@ namespace TaskManager.Tests
 
                 db.Tasks.AddRange(
                     new TaskItem { Title = "private", CreatedById = "victim", VisibilityScope = TaskVisibilityScopes.Private },
-                    new TaskItem { Title = "shared1", CreatedById = "victim", VisibilityScope = TaskVisibilityScopes.TeamPublic, AssignedToId = "victim", IsAssigneeVisibleToOthers = true, TeamId = 1 },
+                    new TaskItem { Title = "shared1", CreatedById = "victim", VisibilityScope = TaskVisibilityScopes.TeamPublic, AssignedToId = "victim", IsAssigneeVisibleToOthers = true, GroupId = 1 },
                     new TaskItem { Title = "shared2", CreatedById = "victim", VisibilityScope = TaskVisibilityScopes.GlobalPublic }
                 );
                 await db.SaveChangesAsync();
@@ -270,7 +287,7 @@ namespace TaskManager.Tests
                     CreatedById = "creator",
                     AssignedToId = "victim",
                     VisibilityScope = TaskVisibilityScopes.TeamPublic,
-                    TeamId = 1,
+                    GroupId = 1,
                     IsAssigneeVisibleToOthers = true
                 });
                 await db.SaveChangesAsync();
@@ -464,14 +481,12 @@ namespace TaskManager.Tests
             public Task<DatabaseHealthProbeResult> CheckAsync() => Task.FromResult(_result);
         }
 
-        private HttpRequestMessage Authorized(HttpMethod method, string url, object? body = null, bool admin = false, string userId = "admin", string? roleOverride = null, string subscriptionId = "sub-1")
+        private HttpRequestMessage Authorized(HttpMethod method, string url, object? body = null, bool admin = false, string userId = "admin", string? roleOverride = null)
         {
             var req = new HttpRequestMessage(method, url);
             var role = roleOverride ?? (admin ? "Admin" : "User");
             req.Headers.Add("X-Test-UserId", userId);
             req.Headers.Add("X-Test-Role", role);
-            req.Headers.Add("X-Test-TeamId", "1");
-            req.Headers.Add("X-Test-SubscriptionId", subscriptionId);
 
             if (body is not null)
             {

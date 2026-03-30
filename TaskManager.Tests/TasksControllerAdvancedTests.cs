@@ -148,12 +148,8 @@ namespace TaskManager.Tests
         {
             await ResetTasksAsync(async db =>
             {
-                await EnsureUserAsync("user1", "user1@test.local", teamId: 1);
-                var user2 = await EnsureUserAsync("user2", "user2@test.local", teamId: 2);
-                if (!await db.Teams.AnyAsync(t => t.Id == 2))
-                {
-                    db.Teams.Add(new Team { Id = 2, Name = "Team 2" });
-                }
+                await EnsureUserAsync("user1", "user1@test.local");
+                await EnsureUserAsync("user2", "user2@test.local");
 
                 db.Tasks.AddRange(
                     // visible: own private
@@ -164,7 +160,6 @@ namespace TaskManager.Tests
                         Title = "assigned-hidden",
                         CreatedById = "lead1",
                         VisibilityScope = TaskVisibilityScopes.TeamPublic,
-                        TeamId = 1,
                         GroupId = 1,
                         AssignedToId = "user1",
                         IsAssigneeVisibleToOthers = false
@@ -175,7 +170,6 @@ namespace TaskManager.Tests
                         Title = "team-public",
                         CreatedById = "lead1",
                         VisibilityScope = TaskVisibilityScopes.TeamPublic,
-                        TeamId = 1,
                         GroupId = 1,
                         IsAssigneeVisibleToOthers = true
                     },
@@ -195,7 +189,6 @@ namespace TaskManager.Tests
                         Title = "other-team",
                         CreatedById = "user2",
                         VisibilityScope = TaskVisibilityScopes.TeamPublic,
-                        TeamId = 2,
                         GroupId = 2,
                         IsAssigneeVisibleToOthers = true
                     },
@@ -205,7 +198,6 @@ namespace TaskManager.Tests
                         Title = "hidden-assignee",
                         CreatedById = "user2",
                         VisibilityScope = TaskVisibilityScopes.TeamPublic,
-                        TeamId = 1,
                         GroupId = 1,
                         AssignedToId = "user2",
                         IsAssigneeVisibleToOthers = false
@@ -239,8 +231,8 @@ namespace TaskManager.Tests
                     VisibilityScope = TaskVisibilityScopes.Private
                 };
                 db.Tasks.Add(task);
-                await EnsureUserAsync("owner", "owner@test.local", teamId: 1);
-                await EnsureUserAsync("user2", "user2@test.local", teamId: 2);
+                await EnsureUserAsync("owner", "owner@test.local");
+                await EnsureUserAsync("user2", "user2@test.local");
                 await db.SaveChangesAsync();
                 taskId = task.Id;
             });
@@ -250,7 +242,7 @@ namespace TaskManager.Tests
             {
                 Content = JsonContent(new MarkProblemRequest { Description = "not allowed" })
             };
-            AddAuth(forbiddenRequest, "user2", "User", teamId: "2");
+            AddAuth(forbiddenRequest, "user2", "User");
             var forbiddenResponse = await _client.SendAsync(forbiddenRequest);
             Assert.Equal(HttpStatusCode.Forbidden, forbiddenResponse.StatusCode);
 
@@ -270,8 +262,8 @@ namespace TaskManager.Tests
             int taskId = 0;
             await ResetTasksAsync(async db =>
             {
-                await EnsureUserAsync("owner", "owner@test.local", teamId: 1);
-                await EnsureUserAsync("user2", "user2@test.local", teamId: 2);
+                await EnsureUserAsync("owner", "owner@test.local");
+                await EnsureUserAsync("user2", "user2@test.local");
                 var task = new TaskItem
                 {
                     Title = "problem-task",
@@ -289,7 +281,7 @@ namespace TaskManager.Tests
 
             // user without rights
             var forbiddenRequest = new HttpRequestMessage(HttpMethod.Delete, $"/api/tasks/{taskId}/problem");
-            AddAuth(forbiddenRequest, "user2", "User", teamId: "2");
+            AddAuth(forbiddenRequest, "user2", "User");
             var forbiddenResponse = await _client.SendAsync(forbiddenRequest);
             Assert.Equal(HttpStatusCode.Forbidden, forbiddenResponse.StatusCode);
 
@@ -327,7 +319,7 @@ namespace TaskManager.Tests
             await db.SaveChangesAsync();
         }
 
-        private async Task<ApplicationUser> EnsureUserAsync(string id, string email, int? teamId = null)
+        private async Task<ApplicationUser> EnsureUserAsync(string id, string email)
         {
             using var scope = _factory.Services.CreateScope();
             var userManager = scope.ServiceProvider.GetRequiredService<UserManager<ApplicationUser>>();
@@ -342,7 +334,6 @@ namespace TaskManager.Tests
                     NormalizedUserName = email.ToUpperInvariant(),
                     Email = email,
                     NormalizedEmail = email.ToUpperInvariant(),
-                    TeamId = teamId,
                     KeycloakSubject = id, // matches the "sub" claim emitted by TestAuthHandler
                     SecurityStamp = Guid.NewGuid().ToString(),
                     ConcurrencyStamp = Guid.NewGuid().ToString()
@@ -352,7 +343,6 @@ namespace TaskManager.Tests
             else
             {
                 bool dirty = false;
-                if (teamId.HasValue && user.TeamId != teamId) { user.TeamId = teamId; dirty = true; }
                 if (user.KeycloakSubject != id) { user.KeycloakSubject = id; dirty = true; }
                 if (dirty) await userManager.UpdateAsync(user);
             }
@@ -363,7 +353,7 @@ namespace TaskManager.Tests
         private async Task<PagedResult<TaskItemDto>> SendGetAsync(string path)
         {
             var request = new HttpRequestMessage(HttpMethod.Get, path);
-            AddAuth(request, "user1", "User", teamId: "1");
+            AddAuth(request, "user1", "User");
 
             var response = await _client.SendAsync(request);
             Assert.Equal(HttpStatusCode.OK, response.StatusCode);
@@ -378,12 +368,10 @@ namespace TaskManager.Tests
             return result!;
         }
 
-        private static void AddAuth(HttpRequestMessage request, string userId, string role, string teamId, string subscriptionId = "sub-1")
+        private static void AddAuth(HttpRequestMessage request, string userId, string role)
         {
             request.Headers.Add("X-Test-UserId", userId);
             request.Headers.Add("X-Test-Role", role);
-            request.Headers.Add("X-Test-TeamId", teamId);
-            request.Headers.Add("X-Test-SubscriptionId", subscriptionId);
         }
 
         private static StringContent JsonContent<T>(T value) =>
@@ -395,14 +383,14 @@ namespace TaskManager.Tests
             {
                 Content = JsonContent(new MarkProblemRequest { Description = description })
             };
-            AddAuth(req, userId, "User", teamId: "1");
+            AddAuth(req, userId, "User");
             return req;
         }
 
         private HttpRequestMessage CreateProblemDelete(int taskId, string userId)
         {
             var req = new HttpRequestMessage(HttpMethod.Delete, $"/api/tasks/{taskId}/problem");
-            AddAuth(req, userId, "User", teamId: "1");
+            AddAuth(req, userId, "User");
             return req;
         }
     }

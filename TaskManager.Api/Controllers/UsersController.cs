@@ -37,13 +37,32 @@ namespace TaskManager.Api.Controllers
 
             var query = _userManager.Users.AsNoTracking();
 
-            var currentSubscriptionId = User.FindFirst("subscription_id")?.Value;
             var isAdmin = User.IsInRole("Admin");
             var isSubscriptionOwner = User.IsInRole("SubscriptionOwner");
 
-            if (!isAdmin && !string.IsNullOrWhiteSpace(currentSubscriptionId))
+            if (!isAdmin && isSubscriptionOwner)
             {
-                query = query.Where(u => u.SubscriptionId == currentSubscriptionId);
+                // Subscription owners see only users in their org(s)
+                var currentUserId = User.FindFirst(System.Security.Claims.ClaimTypes.NameIdentifier)?.Value
+                    ?? User.FindFirst("sub")?.Value;
+                if (!string.IsNullOrEmpty(currentUserId))
+                {
+                    var currentUserDbId = await _db.Users
+                        .Where(u => u.KeycloakSubject == currentUserId)
+                        .Select(u => u.Id)
+                        .FirstOrDefaultAsync() ?? currentUserId;
+
+                    var orgUserIds = await _db.OrgMembers
+                        .Where(m => _db.OrgMembers
+                            .Where(om => om.UserId == currentUserDbId)
+                            .Select(om => om.OrganizationId)
+                            .Contains(m.OrganizationId))
+                        .Select(m => m.UserId)
+                        .Distinct()
+                        .ToListAsync();
+
+                    query = query.Where(u => orgUserIds.Contains(u.Id));
+                }
             }
 
             if (!string.IsNullOrWhiteSpace(search))

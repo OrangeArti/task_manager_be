@@ -20,12 +20,9 @@ public class TestAuthHandler : AuthenticationHandler<AuthenticationSchemeOptions
 
     protected override Task<AuthenticateResult> HandleAuthenticateAsync()
     {
-        // Если нет ни одного тестового заголовка — считаем, что пользователь НЕ аутентифицирован
         var hasAnyHeader =
             Request.Headers.ContainsKey("X-Test-UserId") ||
-            Request.Headers.ContainsKey("X-Test-Role") ||
-            Request.Headers.ContainsKey("X-Test-TeamId") ||
-            Request.Headers.ContainsKey("X-Test-SubscriptionId");
+            Request.Headers.ContainsKey("X-Test-Role");
 
         if (!hasAnyHeader)
         {
@@ -34,8 +31,6 @@ public class TestAuthHandler : AuthenticationHandler<AuthenticationSchemeOptions
 
         var userId = Request.Headers["X-Test-UserId"].FirstOrDefault() ?? "test-user";
         var role = Request.Headers["X-Test-Role"].FirstOrDefault();
-        var teamIdHeader = Request.Headers["X-Test-TeamId"].FirstOrDefault();
-        var subscriptionIdHeader = Request.Headers["X-Test-SubscriptionId"].FirstOrDefault();
 
         var claims = new List<Claim>
         {
@@ -45,12 +40,6 @@ public class TestAuthHandler : AuthenticationHandler<AuthenticationSchemeOptions
 
         if (!string.IsNullOrEmpty(role))
             claims.Add(new Claim(ClaimTypes.Role, role));
-
-        if (!string.IsNullOrEmpty(teamIdHeader))
-            claims.Add(new Claim("team_id", teamIdHeader));
-
-        if (!string.IsNullOrEmpty(subscriptionIdHeader))
-            claims.Add(new Claim("subscription_id", subscriptionIdHeader));
 
         var identity = new ClaimsIdentity(claims, SchemeName);
         var principal = new ClaimsPrincipal(identity);

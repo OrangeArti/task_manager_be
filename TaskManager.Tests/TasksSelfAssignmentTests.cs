@@ -29,24 +29,7 @@ namespace TaskManager.Tests
         [Fact]
         public async Task AssignSelf_ShouldSuccess_WhenTaskIsTeamPublicAndUnassigned()
         {
-            // 1. Create a second user in Team 1 for this test
-            using (var scope = _factory.Services.CreateScope())
-            {
-                var db = scope.ServiceProvider.GetRequiredService<ApplicationDbContext>();
-                if (!db.Users.Any(u => u.Id == "user2"))
-                {
-                    db.Users.Add(new ApplicationUser
-                    {
-                        Id = "user2",
-                        UserName = "user2",
-                        Email = "user2@test.local",
-                        TeamId = 1,
-                        SubscriptionId = "sub-1",
-                        KeycloakSubject = "user2"
-                    });
-                    await db.SaveChangesAsync();
-                }
-            }
+            // 1. user2 is already seeded by CustomWebApplicationFactory with group membership
 
             // 2. Login as User1 and create a Shared Task
             var user1Client = CreateClientForUser("user1");
@@ -54,7 +37,7 @@ namespace TaskManager.Tests
             {
                 Title = "Shared Task For Self Assign",
                 VisibilityScope = TaskVisibilityScopes.TeamPublic,
-                TeamId = 1
+                GroupId = 1
             });
             createResponse.EnsureSuccessStatusCode();
             var task = await createResponse.Content.ReadFromJsonAsync<TaskItemDto>();
@@ -75,7 +58,7 @@ namespace TaskManager.Tests
         [Fact]
         public async Task AssignSelf_ShouldFail_WhenTaskAssignedToOthers()
         {
-            // 1. Create User3 in Team 1 (and Group 1 for group-based visibility)
+            // 1. Create User3 in Group 1
             using (var scope = _factory.Services.CreateScope())
             {
                 var db = scope.ServiceProvider.GetRequiredService<ApplicationDbContext>();
@@ -86,9 +69,9 @@ namespace TaskManager.Tests
                         Id = "user3",
                         UserName = "user3",
                         Email = "user3@test.local",
-                        TeamId = 1,
-                        SubscriptionId = "sub-1",
-                        KeycloakSubject = "user3"
+                        KeycloakSubject = "user3",
+                        SecurityStamp = Guid.NewGuid().ToString(),
+                        ConcurrencyStamp = Guid.NewGuid().ToString()
                     });
                     await db.SaveChangesAsync();
                 }
@@ -106,7 +89,7 @@ namespace TaskManager.Tests
             {
                 Title = "Already Taken Task",
                 VisibilityScope = TaskVisibilityScopes.TeamPublic,
-                TeamId = 1,
+                GroupId = 1,
                 AssignedToId = "user1"
             });
             createResponse.EnsureSuccessStatusCode();
