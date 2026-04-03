@@ -1,77 +1,64 @@
 # Task Manager Backend
 
-RESTful backend for tasks, teams, users, roles, and auth. Built with ASP.NET Core 9, Entity Framework Core, and Identity. Includes JWT auth, authorization policies, and extensive integration/unit test coverage.
+RESTful backend for multi-tenant task management. Built with ASP.NET Core 9 and Entity Framework Core. Authentication via Keycloak 26 (replaces custom JWT). Includes organization/group management, policy-based authorization, and extensive integration test coverage.
 
 ## What it does
-- Manages tasks with visibility scopes (Private, TeamPublic, GlobalPublic), assignment, priority, due dates, and problem flags.
-- Supports teams and membership management.
-- Provides user directory + CRUD (admin/owner for management; all authenticated users can view directory with public fields; subscription owners see/manage only their subscription), roles management, and authentication (register/login/refresh/logout) with JWT + refresh tokens. Admin/owner get full management fields; regular users only see public directory fields.
-- Enforces fine-grained authorization for task actions (owner/team lead/subscription owner/admin).
-- Exposes health checks with database connectivity, pending migrations metadata, and trace IDs; structured logging with scopes and correlation headers.
+- Manages tasks with visibility scopes (Private, TeamPublic, GlobalPublic), group-scoped access, self-assignment, priority, due dates, completion tracking, and problem flags.
+- Supports multi-tenant organizations: org creation, invite-based membership, and subscription ownership.
+- Group CRUD with multi-group membership — task visibility evaluated against the user's full set of group memberships.
+- User directory with role-scoped field visibility (admin/owner see management fields; regular users see public fields only).
+- Role assignment (Admin, TeamLead) managed via `RolesController`.
+- Health checks with database connectivity, pending migrations metadata, and trace IDs; structured logging with scopes and correlation headers.
 
 ## Getting Started
 
 ### Prerequisites
 - .NET 9 SDK
-- SQL Server (for local dev) or use the included in-memory DB for tests
+- SQL Server (local dev) — or use the in-memory DB for tests (no SQL Server needed)
+- Keycloak 26 (provided via Docker Compose for local dev)
 
 ### Clone and restore
 ```bash
-git clone https://github.com/your-org/task-manager-backend.git
+git clone <repo-url>
 cd task-manager-backend
 dotnet restore
 ```
 
 ### Configuration
-Create or set the following (appsettings.json or environment variables):
-- `ConnectionStrings:DefaultConnection` — SQL Server connection string.
-- `Jwt:Key` — strong symmetric key (32+ chars).
-- `Jwt:Issuer`, `Jwt:Audience` — JWT metadata.
-- `AllowedCorsOrigins` — origins for the frontend.
-- `DisableHttps` — set to `true` only for local/http testing.
+Set the following in `appsettings.json` or as environment variables:
+- `ConnectionStrings:DefaultConnection` — SQL Server connection string
+- `Keycloak:auth-server-url` — Keycloak base URL (e.g. `http://localhost:8180`)
+- `Keycloak:realm` — Keycloak realm name
+- `Keycloak:resource` — Keycloak client ID
+- `AllowedCorsOrigins` — origins for the frontend
 
 ### Migrate and run (local SQL Server)
 ```bash
 dotnet ef database update --project TaskManager.Api
 dotnet run --project TaskManager.Api
 ```
-App will start at http://localhost:5000 (or https://localhost:5001).
+App starts at http://localhost:5000 (or https://localhost:5001).
 
 ### Run with in-memory DB (tests/dev)
-Set environment `ASPNETCORE_ENVIRONMENT=Testing` to use the in-memory provider (no migrations needed), then:
+Set `ASPNETCORE_ENVIRONMENT=Testing` — no migrations needed:
 ```bash
 dotnet run --project TaskManager.Api
 ```
 
-### Docker (single service)
-Build and run the API container (expects a SQL Server connection string and JWT settings):
-```bash
-docker build -t task-manager-api -f TaskManager.Api/Dockerfile .
-docker run --rm -p 8080:8080 \
-  -e ASPNETCORE_URLS=http://+:8080 \
-  -e ConnectionStrings__DefaultConnection="Server=host.docker.internal,1433;Database=TaskManagerDb;User Id=sa;Password=YourStrong!Passw0rd;Encrypt=False;TrustServerCertificate=True" \
-  -e Jwt__Key="your-32-char-secret" \
-  -e Jwt__Issuer="taskmanager-api" \
-  task-manager-api
-```
-
 ### Docker Compose (full stack)
-`docker-compose.dev.yml` starts SQL Server, Tasks API, stubbed Teams/Users services, and the API gateway:
+Starts SQL Server, Tasks API, API Gateway, and Keycloak:
 ```bash
 export MSSQL_SA_PASSWORD="YourStrong!Passw0rd"
-export JWT_KEY="your-32-char-secret"
-export JWT_ISSUER="taskmanager-api"
 export Admin__Email="admin@example.com"
 export Admin__Password="Str0ngP@ss!"
-export Admin__DisplayName="Admin"
 export ACCEPT_EULA=Y
 docker compose -f docker-compose.dev.yml up --build
 ```
+
 Services:
 - Gateway: http://localhost:8080
 - Tasks API: http://localhost:8081
-- Stub Teams: http://localhost:8082
-- Stub Users: http://localhost:8083
+- Keycloak: http://localhost:8180
 - SQL Server: localhost:1433 (volume `mssql_data`)
 
 ## Tests
@@ -79,17 +66,21 @@ Services:
 ### How to run
 ```bash
 dotnet test -v n
+# Filter to a specific controller:
+dotnet test --filter "CommentsController"
 ```
 
 ### Coverage highlights
-- **AuthController**: register, login, refresh, logout (success, invalid/expired tokens, duplicate email, weak password).
-- **Auth rate limiting**: login/register (tight policy) and refresh/logout (softer policy) return 429 when limits are exceeded.
-- **TasksController**: CRUD, filters (isCompleted, priority, search), sorting, visibility rules (private/team/global, hidden assignees), problem mark/unmark with permissions and idempotency.
-- **TeamsController**: list, get by id, create/update/delete with validation, members add/remove/list with role checks.
-- **UsersController**: pagination + search, directory view for regular users (public fields), full management view for admin/owner, subscription scoping for owners, delete self-guard, task cleanup/reassignment on delete, 404 path.
+- **TasksController**: CRUD, filters (isCompleted, priority, search), sorting, visibility rules (private/team/global, multi-group membership, hidden assignees), problem mark/unmark with permissions and idempotency.
+- **TaskAccessEvaluator**: full permission matrix (edit status/task/delete/problem mark/unmark) across roles, visibility scopes, and multi-group membership sets.
+- **OrgsController**: org creation, invite generation, org-scoped subscription owner assignment.
+- **InvitesController**: invite acceptance flow — joining org as member.
+- **GroupsController**: group CRUD, member add/remove, org-scoped access enforcement.
+- **UsersController**: pagination + search, public-field view for regular users, full management view for admin/owner, subscription scoping for owners, delete self-guard, task cleanup/reassignment on delete.
 - **RolesController**: list roles, get user roles, assign/remove with success and error paths.
-- **TaskAccessEvaluator**: permission matrix for edit status/task/delete/problem mark/unmark across roles/scopes.
-- **HealthController**: healthy path, DB-failure path (returns 503/Unhealthy), and degraded state when migrations are pending (metadata includes traceId and pendingMigrations).
+- **Auth rate limiting**: login/register (tight policy) and refresh/logout (softer policy) return 429 when limits are exceeded.
+- **HealthController**: healthy path, DB-failure path (returns 503), degraded state with pending migrations (metadata includes traceId and pendingMigrations list).
+- **Schema tests**: verifies all expected tables (`Subscriptions`, `Organizations`, `Groups`, `GroupMembers`, `Comments`, `OrgMembers`, `OrgInvitations`) exist after EF migrations.
 
 ### Latest test run
-`dotnet test -v n` — **all 72 tests passed** (see summary above).
+`dotnet test -v n` — **all 87 tests passed**.
