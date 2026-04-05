@@ -122,6 +122,23 @@ builder.Services.AddKeycloakWebApiAuthentication(builder.Configuration, options 
     options.RequireHttpsMetadata = false; // dev only — remove for production
 });
 
+// Override default scheme — AddIdentity sets cookie as default, but this is a JWT API.
+builder.Services.Configure<Microsoft.AspNetCore.Authentication.AuthenticationOptions>(options =>
+{
+    options.DefaultAuthenticateScheme = Microsoft.AspNetCore.Authentication.JwtBearer.JwtBearerDefaults.AuthenticationScheme;
+    options.DefaultChallengeScheme = Microsoft.AspNetCore.Authentication.JwtBearer.JwtBearerDefaults.AuthenticationScheme;
+});
+
+// Align JWT Bearer role claim type with what KeycloakClaimsTransformer adds (ClaimTypes.Role).
+// Keycloak.AuthServices v2.7 sets roleClaimType to "role" by default, which doesn't match
+// the long-form ClaimTypes.Role URL — causing User.IsInRole() / RequireRole to return false.
+builder.Services.Configure<Microsoft.AspNetCore.Authentication.JwtBearer.JwtBearerOptions>(
+    Microsoft.AspNetCore.Authentication.JwtBearer.JwtBearerDefaults.AuthenticationScheme,
+    options =>
+    {
+        options.TokenValidationParameters.RoleClaimType = System.Security.Claims.ClaimTypes.Role;
+    });
+
 // Map realm_access.roles JWT claim to ClaimTypes.Role for User.IsInRole() support
 builder.Services.AddTransient<IClaimsTransformation, KeycloakClaimsTransformer>();
 

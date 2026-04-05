@@ -32,13 +32,33 @@ namespace TaskManager.Api.Controllers
         /// </summary>
         private async Task<string?> GetCurrentUserDbIdAsync()
         {
-            var sub = User.FindFirstValue("sub");
+            // JWT middleware maps the 'sub' claim to ClaimTypes.NameIdentifier
+            var sub = User.FindFirstValue(ClaimTypes.NameIdentifier) ?? User.FindFirstValue("sub");
             if (sub is null) return null;
 
-            return await _db.Users
+            var dbId = await _db.Users
                 .Where(u => u.KeycloakSubject == sub)
                 .Select(u => u.Id)
                 .FirstOrDefaultAsync();
+
+            if (dbId is not null) return dbId;
+
+            // JIT provisioning: create a local Identity row on first Keycloak login
+            var email = User.FindFirstValue(ClaimTypes.Email) ?? User.FindFirstValue("email") ?? $"{sub}@keycloak";
+            var user = new ApplicationUser
+            {
+                UserName = email,
+                NormalizedUserName = email.ToUpperInvariant(),
+                Email = email,
+                NormalizedEmail = email.ToUpperInvariant(),
+                EmailConfirmed = true,
+                KeycloakSubject = sub,
+                SecurityStamp = Guid.NewGuid().ToString(),
+                ConcurrencyStamp = Guid.NewGuid().ToString()
+            };
+            _db.Users.Add(user);
+            await _db.SaveChangesAsync();
+            return user.Id;
         }
 
         private static readonly Expression<Func<TaskItem, TaskItemDto>> TaskToDtoProjection = t => new TaskItemDto

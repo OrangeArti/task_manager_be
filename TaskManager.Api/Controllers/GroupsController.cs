@@ -21,7 +21,7 @@ public class GroupsController : ControllerBase
 
     private async Task<string?> GetCurrentUserDbIdAsync()
     {
-        var sub = User.FindFirstValue("sub");
+        var sub = User.FindFirstValue(ClaimTypes.NameIdentifier) ?? User.FindFirstValue("sub");
         if (sub is null) return null;
         return await _db.Users
             .Where(u => u.KeycloakSubject == sub)
