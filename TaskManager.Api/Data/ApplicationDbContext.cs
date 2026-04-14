@@ -30,7 +30,11 @@ namespace TaskManager.Api.Data
 				e.Property(t => t.Title).HasMaxLength(200).IsRequired();
 				e.Property(t => t.Description).HasMaxLength(4000);
                 e.Property(t => t.Priority).HasDefaultValue(0);
-                e.Property(t => t.IsCompleted).HasDefaultValue(false);
+                e.Ignore(t => t.IsCompleted);
+                e.Property(t => t.Status)
+                    .HasConversion<string>()
+                    .HasMaxLength(16)
+                    .HasDefaultValue(TaskManager.Api.Models.TaskStatus.Todo);
                 e.Property(t => t.CreatedAt).HasDefaultValueSql("GETUTCDATE()");
                 e.Property(t => t.IsAssigneeVisibleToOthers).HasDefaultValue(true);
                 e.Property(t => t.VisibilityScope)

@@ -3,13 +3,17 @@ using System.Collections.Generic;
 
 namespace TaskManager.Api.Models
 {
+    public enum TaskStatus { Todo = 0, InProgress = 1, Done = 2 }
+
     public class TaskItem
     {
         public int Id { get; set; }
         public string Title { get; set; } = "";
         public string? Description { get; set; }
         public DateTime? DueDate { get; set; }
-        public bool IsCompleted { get; set; } = false;
+        public TaskStatus Status { get; set; } = TaskStatus.Todo;
+        // Computed — not persisted; EF ignores this via Fluent API
+        public bool IsCompleted => Status == TaskStatus.Done;
         public int Priority { get; set; } = 0;
         public DateTime CreatedAt { get; set; } = DateTime.UtcNow;
         public bool IsAssigneeVisibleToOthers { get; set; } = true;
