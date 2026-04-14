@@ -12,6 +12,7 @@ namespace TaskManager.Api.Dtos
         public string? Description { get; init; }
         public DateTime? DueDate { get; init; }
         public bool IsCompleted { get; init; }
+        public string Status { get; init; } = "Todo";
         public int Priority { get; init; }
         public DateTime CreatedAt { get; init; }
         public string VisibilityScope { get; init; } = TaskVisibilityScopes.Private;

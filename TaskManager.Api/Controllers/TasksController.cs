@@ -67,7 +67,8 @@ namespace TaskManager.Api.Controllers
             Title = t.Title,
             Description = t.Description,
             DueDate = t.DueDate,
-            IsCompleted = t.IsCompleted,
+            IsCompleted = t.Status == TaskManager.Api.Models.TaskStatus.Done,
+            Status = t.Status.ToString(),
             Priority = t.Priority,
             CreatedAt = t.CreatedAt,
             VisibilityScope = t.VisibilityScope,
@@ -88,7 +89,8 @@ namespace TaskManager.Api.Controllers
             Title = entity.Title,
             Description = entity.Description,
             DueDate = entity.DueDate,
-            IsCompleted = entity.IsCompleted,
+            IsCompleted = entity.Status == TaskManager.Api.Models.TaskStatus.Done,
+            Status = entity.Status.ToString(),
             Priority = entity.Priority,
             CreatedAt = entity.CreatedAt,
             VisibilityScope = entity.VisibilityScope,
@@ -165,7 +167,7 @@ namespace TaskManager.Api.Controllers
             }
 
             if (query.IsCompleted.HasValue)
-                q = q.Where(t => t.IsCompleted == query.IsCompleted.Value);
+                q = q.Where(t => (t.Status == TaskManager.Api.Models.TaskStatus.Done) == query.IsCompleted.Value);
 
             if (query.Priority.HasValue)
                 q = q.Where(t => t.Priority == query.Priority.Value);
@@ -424,6 +426,13 @@ namespace TaskManager.Api.Controllers
             if (!ModelState.IsValid)
                 return ValidationProblem(ModelState);
 
+            if (!Enum.TryParse<TaskManager.Api.Models.TaskStatus>(request.Status, ignoreCase: false, out var newStatus)
+                || !Enum.IsDefined(typeof(TaskManager.Api.Models.TaskStatus), newStatus))
+            {
+                ModelState.AddModelError("Status", $"'{request.Status}' is not a valid Status. Use: Todo, InProgress, Done.");
+                return ValidationProblem(ModelState);
+            }
+
             var entity = await _db.Tasks.FirstOrDefaultAsync(t => t.Id == id);
             if (entity is null)
                 return NotFound(new { message = $"Task #{id} not found" });
@@ -438,18 +447,13 @@ namespace TaskManager.Api.Controllers
             if (!TaskAccessEvaluator.CanEditStatus(access, currentUserId, isAdmin, isSubscriptionOwner, userGroupIds))
                 return Forbid();
 
-            var newValue = request.IsCompleted!.Value;
+            if (entity.Status == newStatus)
+                return NoContent();
 
-            if (entity.IsCompleted == newValue)
-                return NoContent(); // idempotent response — nothing changed
+            entity.Status = newStatus;
 
-            entity.IsCompleted = newValue;
-
-            if (newValue)
-            {
+            if (newStatus == TaskManager.Api.Models.TaskStatus.Done)
                 entity.FinishedByUserId = currentUserId;
-                entity.CompletionComment = request.CompletionComment?.Trim();
-            }
             else
             {
                 entity.FinishedByUserId = null;
@@ -457,7 +461,6 @@ namespace TaskManager.Api.Controllers
             }
 
             await _db.SaveChangesAsync();
-
             return Ok(ToDto(entity));
         }
 

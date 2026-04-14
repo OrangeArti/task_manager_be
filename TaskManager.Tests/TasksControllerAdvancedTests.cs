@@ -40,14 +40,14 @@ namespace TaskManager.Tests
                         Title = "Done",
                         CreatedById = "user1",
                         VisibilityScope = TaskVisibilityScopes.Private,
-                        IsCompleted = true
+                        Status = TaskManager.Api.Models.TaskStatus.Done
                     },
                     new TaskItem
                     {
                         Title = "Pending",
                         CreatedById = "user1",
                         VisibilityScope = TaskVisibilityScopes.Private,
-                        IsCompleted = false
+                        Status = TaskManager.Api.Models.TaskStatus.Todo
                     });
             });
 
