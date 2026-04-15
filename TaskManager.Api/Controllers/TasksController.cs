@@ -57,8 +57,20 @@ namespace TaskManager.Api.Controllers
                 ConcurrencyStamp = Guid.NewGuid().ToString()
             };
             _db.Users.Add(user);
-            await _db.SaveChangesAsync();
-            return user.Id;
+            try
+            {
+                await _db.SaveChangesAsync();
+                return user.Id;
+            }
+            catch (DbUpdateException)
+            {
+                // Another concurrent request already provisioned this user — re-fetch
+                _db.Entry(user).State = Microsoft.EntityFrameworkCore.EntityState.Detached;
+                return await _db.Users
+                    .Where(u => u.KeycloakSubject == sub)
+                    .Select(u => u.Id)
+                    .FirstOrDefaultAsync();
+            }
         }
 
         private static readonly Expression<Func<TaskItem, TaskItemDto>> TaskToDtoProjection = t => new TaskItemDto
